@@ -11,7 +11,7 @@ fi
 
 sar -A > "$CDATE".sar
 ps auxS > "$CDATE".ps
-perf record -ag sleep 30
+perf record -ag sleep 300
 if [ -f "./perf.data" ]; then
 	perf script > perf.data.script
 	./flamegraph/stackcollapse-perf.pl perf.data.script > out.fold
