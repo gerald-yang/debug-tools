@@ -1,3 +1,5 @@
+#!/bin/sh
+
 CDATE=$(date +%F.%H.%M)
 
 if [ "$(id -u)" != "0" ]; then
