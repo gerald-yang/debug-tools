@@ -11,9 +11,14 @@ if [ ! -d "./flamegraph" ]; then
 	git clone https://github.com/brendangregg/flamegraph
 fi
 
+if ! rpm -q sysstat 2>&1 > /dev/null; then
+	yum install -y sysstat
+fi
+
 sar -A > "$CDATE".sar
 ps auxS > "$CDATE".ps
 perf record -ag sleep 300
+
 if [ -f "./perf.data" ]; then
 	perf script > perf.data.script
 	./flamegraph/stackcollapse-perf.pl perf.data.script > out.fold
