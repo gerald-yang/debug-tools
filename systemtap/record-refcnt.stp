@@ -1,0 +1,1441 @@
+probe begin {
+	printf("Gerald: start probe refcnt\n")
+}
+
+probe end {
+	printf("\n\nDump all tables\n")
+	print_all_table()
+	printf("Gerald: end probe refcnt\n")
+}
+
+function print_hold(nd:string)
+{
+	printf("dev_hold: %s hold by %s\n", nd, symname(stack(0)));
+}
+
+function print_put(nd:string)
+{
+	printf("dev_put %s put by %s\n", nd, symname(stack(0)));
+}
+
+function print_error_null(obj:string)
+{
+	printf("Error: %s %s NULL\n", symname(stack(0)), obj);
+}
+
+
+global dst_table
+function print_dst_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2, var3, var4] in dst_table) {
+		printf("cnt %d, %s %d 0x%x %s\n", cnt, var1, var2, var3, var4)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("dst_init@net/core/dst.c:175") 
+{
+	if (@defined($dst)) {
+		dst = $dst
+		dev = @cast(dst, "struct dst_entry")->dev
+		if(dev != NULL) {
+			devn = @cast(dev, "struct net_device")->name
+			if ( devn != NULL ) {
+				family = @cast(dst, "struct dst_entry")->ops->family
+				protocol = @cast(dst, "struct dst_entry")->ops->protocol
+				devname = kernel_string(@cast(dst, "struct dst_entry")->dev->name)
+				dst_table["dst", family, protocol, devname]++
+				print_hold(devname)
+			}
+		}
+		print_dst_table()
+	} else {
+		print_error_null("dst")
+	}
+
+	printf("\n")
+}
+
+probe kernel.statement("dst_destroy@net/core/dst.c:266") 
+{
+	if (@defined($dst)) {
+		dst = $dst
+		dev = @cast(dst, "struct dst_entry")->dev
+		if ( dev != NULL) {
+			family = @cast(dst, "struct dst_entry")->ops->family
+			protocol = @cast(dst, "struct dst_entry")->ops->protocol
+			devname = kernel_string(@cast(dst, "struct dst_entry")->dev->name)
+			dst_table["dst", family, protocol, devname]--
+			print_put(devname)
+			c = dst_table["dst", family, protocol, devname]
+			if ( c == 0 ) {
+				delete dst_table["dst", family, protocol, devname]
+			}
+			print_dst_table()
+		}
+	} else {
+		print_error_null("dst")
+	}
+
+	printf("\n")
+}
+
+probe kernel.statement("dst_ifdown@net/core/dst.c:427")
+{
+	if (@defined($dst) && @defined($dev)) {
+		printf("dst_ifdown\n")
+		dst = $dst
+		dev = $dev
+		family = @cast(dst, "struct dst_entry")->ops->family
+		protocol = @cast(dst, "struct dst_entry")->ops->protocol
+		devname = kernel_string(@cast(dst, "struct dst_entry")->dev->name)
+		dst_table["dst", family, protocol, devname]++
+		print_dst_table()
+
+		del_devname = kernel_string(@cast(dev, "struct net_device")->name)
+		dst_table["dst_init_destroy", family, protocol, del_devname]--
+		c = dst_table["dst", family, protocol, del_devname]
+		if ( c == 0 ) {
+			delete dst_table["dst", family, protocol, del_devname]
+		}
+		print_dst_table()
+	} else {
+		print_error_null("dst or dev")
+	}
+}
+
+
+global macvtap_table
+function print_macvtap_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in macvtap_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe module("macvtap").statement("macvtap_get_vlan@drivers/net/macvtap.c:1112")
+{
+	if (@defined($vlan)) {
+		vlan = $vlan
+		if(vlan != NULL) {
+			devname = kernel_string(@cast(vlan, "struct macvlan_dev")->dev->name);
+			macvtap_table["macvtap", devname]++
+			print_hold(devname)
+			print_macvtap_table()
+		}
+	} else {
+		print_error_null("vlan")
+	}
+}
+
+probe module("macvtap").statement("dev_get_by_macvtap_minor@drivers/net/macvtap.c:459")
+{
+	if (@defined($vlan)) {
+		vlan = $vlan
+		if(vlan != NULL) {
+			devname = kernel_string(@cast(vlan, "struct macvlan_dev")->dev->name);
+			macvtap_table["macvtap", devname]++
+			print_hold(devname)
+			print_macvtap_table()
+		}
+	} else {
+		print_error_null("vlan");
+	}
+}
+
+probe module("macvtap").statement("macvtap_open@drivers/net/macvtap.c:580")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		if(dev != NULL) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name);
+			macvtap_table["macvtap", devname]--
+			print_put(devname)
+			c = macvtap_table["macvtap", devname]
+			if ( c == 0 ) {
+				delete macvtap_table["macvtap", devname]
+			}
+			print_macvtap_table()
+		}
+	} else {
+		print_error_null("dev");
+	}
+}
+
+probe module("macvtap").statement("macvtap_open@drivers/net/macvtap.c:591")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		if(dev != NULL) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name);
+			macvtap_table["macvtap", devname]--
+			print_put(devname)
+			c = macvtap_table["macvtap", devname]
+			if ( c == 0 ) {
+				delete macvtap_table["macvtap", devname]
+			}
+			print_macvtap_table()
+		}
+	} else {
+		print_error_null("dev");
+	}
+}
+
+probe module("macvtap").function("macvtap_put_vlan")
+{
+	if (@defined($vlan)) {
+		vlan = $vlan
+		if(vlan != NULL) {
+			devname = kernel_string(@cast(vlan, "struct macvlan_dev")->dev->name);
+			macvtap_table["macvtap", devname]--
+			print_put(devname)
+			c = macvtap_table["macvtap", devname]
+			if ( c == 0 ) {
+				delete macvtap_table["macvtap", devname]
+			}
+			print_macvtap_table()
+		}
+	} else {
+		print_error_null("vlan");
+	}
+}
+
+
+global tun_table
+function print_tun_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in tun_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe module("tun").statement("__tun_get@drivers/net/tun.c:673")
+{
+	if (@defined($tun)) {
+		tun = $tun
+		if(tun != NULL) {
+			devname = kernel_string(@cast(tun, "struct tun_struct")->dev->name);
+			tun_table["tun", devname]++
+			print_hold(devname)
+			print_tun_table()
+		}
+	} else {
+		print_error_null("tun");
+	}
+}
+
+probe module("tun").function("tun_put")
+{
+	if (@defined($tun)) {
+		tun = $tun
+		if(tun != NULL) {
+			devname = kernel_string(@cast(tun, "struct tun_struct")->dev->name);
+			tun_table["tun", devname]--
+			print_put(devname)
+			c = tun_table["tun", devname]
+			if ( c == 0 ) {
+				delete tun_table["tun", devname]
+			}
+			print_tun_table()
+		}
+	} else {
+		print_error_null("tun");
+	}
+}
+
+/*
+global vlan_table
+
+probe module("8021q").statement("register_vlan_dev@net/8021q/vlan.c:183")
+{
+	if (@defined($vlan_id) && @defined($real_dev)) {
+		print_hold()
+		dev = $real_dev
+		vlan_id = $vlan_id
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		vlan_table["vlan", vlan_id, devname]++
+		printf("====== Start Array ======\n")
+		foreach (cnt = [var1, var2, var3] in vlan_table) {
+			printf("cnt %d, %s %d %s\n", cnt, var1, var2, var3)
+		}
+		printf("====== End Array ======\n")
+	} else {
+		print_error_null("vlan_id or read_dev")
+	}
+}
+
+probe module("8021q").statement("unregister_vlan_dev@net/8021q/vlan.c:123")
+{
+	if (@defined($vlan_id) && @defined($real_dev)) {
+		print_hold()
+		dev = $real_dev
+		vlan_id = $vlan_id
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		vlan_table["vlan", vlan_id, devname]--
+		c = vlan_table["vlan", vlan_id, devname]
+		if ( c == 0 ) {
+			delete vlan_table["vlan", vlan_id, devname]
+		}
+		printf("====== Start Array ======\n")
+		foreach (cnt = [var1, var2, var3] in vlan_table) {
+			printf("cnt %d, %s %d %s\n", cnt, var1, var2, var3)
+		}
+		printf("====== End Array ======\n")
+	} else {
+		print_error_null("vlan_id or read_dev")
+	}
+}
+*/
+
+global bridge_table
+function print_bridge_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2, var3] in bridge_table) {
+		printf("cnt %d, %s %s %s\n", cnt, var1, var2, var3)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe module("bridge").statement("new_nbp@net/bridge/br_if.c:359")
+{
+	if (@defined($br) && @defined($dev)) {
+		br = $br
+		dev = $dev
+		group_addr = kernel_string(@cast(br, "struct net_bridge")->group_addr)
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		bridge_table["bridge", group_addr, devname]++
+		print_hold(devname)
+		print_bridge_table()
+	} else {
+		print_error_null("br or dev")
+	}
+}
+
+probe module("bridge").statement("new_nbp@net/bridge/br_if.c:370")
+{
+	if (@defined($br) && @defined($dev)) {
+		br = $br
+		dev = $dev
+		group_addr = kernel_string(@cast(br, "struct net_bridge")->group_addr)
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		bridge_table["bridge", group_addr, devname]--
+		print_put(devname)
+		c = bridge_table["bridge", group_addr, devname]
+		if ( c == 0 ) {
+			delete bridge_table["bridge", group_addr, devname]
+		}
+		print_bridge_table()
+	} else {
+		print_error_null("br or dev")
+	}
+}
+
+probe module("bridge").statement("br_add_if@net/bridge/br_if.c:614")
+{
+	if (@defined($br) && @defined($dev)) {
+		br = $br
+		dev = $dev
+		group_addr = kernel_string(@cast(br, "struct net_bridge")->group_addr)
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		bridge_table["bridge", group_addr, devname]--
+		print_put(devname)
+		c = bridge_table["bridge", group_addr, devname]
+		if ( c == 0 ) {
+			delete bridge_table["bridge", group_addr, devname]
+		}
+		print_bridge_table()
+	} else {
+		print_error_null("br or dev")
+	}
+}
+
+probe module("bridge").function("destroy_nbp")
+{
+	if (@defined($p)) {
+		p = $p
+		group_addr = kernel_string(@cast(p, "struct net_bridge_port")->br->group_addr)
+		devname = kernel_string(@cast(p, "struct net_bridge_port")->dev->name)
+		bridge_table["bridge", group_addr, devname]--
+		print_put(devname)
+		c = bridge_table["bridge", group_addr, devname]
+		if ( c == 0 ) {
+			delete bridge_table["bridge", group_addr, devname]
+		}
+		print_bridge_table()
+	} else {
+		print_error_null("p")
+	}
+}
+
+
+global dev_table
+function print_dev_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in dev_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("dev_get_by_name@net/core/dev.c:785")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		dev_table["dev", devname]++
+		print_hold(devname)
+		print_dev_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("dev_get_by_index@net/core/dev.c:859")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		dev_table["dev", devname]++
+		print_hold(devname)
+		print_dev_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("dev_getfirstbyhwtype@net/core/dev.c:946")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		dev_table["dev", devname]++
+		print_hold(devname)
+		print_dev_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("__netdev_adjacent_dev_insert@net/core/dev.c:5625")
+{
+	if (@defined($adj_dev)) {
+		dev = $adj_dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		dev_table["dev", devname]++
+		print_hold(devname)
+		print_dev_table()
+	} else {
+		print_error_null("adj_dev")
+	}
+}
+
+probe kernel.statement("register_netdevice@net/core/dev.c:7268")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		dev_table["dev", devname]++
+		print_hold(devname)
+		print_dev_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("__netdev_adjacent_dev_remove@net/core/dev.c:5692")
+{
+	if (@defined($adj_dev)) {
+		dev = $adj_dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		dev_table["dev", devname]--
+		print_put(devname)
+		c = dev_table["dev", devname]
+		if ( c == 0 ) {
+			delete dev_table["dev", devname]
+		}
+		print_dev_table()
+	} else {
+		print_error_null("adj_dev")
+	}
+}
+
+probe kernel.statement("rollback_registered_many@net/core/dev.c:6815")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		dev_table["dev", devname]--
+		print_put(devname)
+		c = dev_table["dev", devname]
+		if ( c == 0 ) {
+			delete dev_table["dev", devname]
+		}
+		print_dev_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+
+global ethtool_table
+function print_ethtool_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in ethtool_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("ethtool_phys_id@net/core/ethtool.c:1862")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		ethtool_table["ethtool", devname]++
+		print_hold(devname)
+		print_ethtool_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("ethtool_phys_id@net/core/ethtool.c:1862")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		ethtool_table["ethtool", devname]--
+		print_put(devname)
+		c = ethtool_table["ethtool", devname]
+		if ( c == 0 ) {
+			delete ethtool_table["ethtool", devname]
+		}
+		print_ethtool_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+/*
+global link_watch_table
+
+probe kernel.statement("linkwatch_add_event@net/core/link_watch.c:109")
+{
+	if (@defined($dev)) {
+		print_hold()
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		link_watch_table["dev", devname]++
+		printf("====== Start Array ======\n")
+		foreach (cnt = [var1, var2] in link_watch_table) {
+			printf("cnt %d, %s %s\n", cnt, var1, var2)
+		}
+		printf("====== End Array ======\n")
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("linkwatch_do_dev@net/core/link_watch.c:166")
+{
+	if (@defined($dev)) {
+		print_put()
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		link_watch_table["dev", devname]--
+		c = link_watch_table["dev", devname]
+		if ( c == 0 ) {
+			delete link_watch_table["dev", devname]
+		}
+		printf("====== Start Array ======\n")
+		foreach (cnt = [var1, var2] in link_watch_table) {
+			printf("cnt %d, %s %s\n", cnt, var1, var2)
+		}
+		printf("====== End Array ======\n")
+	} else {
+		print_error_null("dev")
+	}
+}
+*/
+
+
+global neighbour_table
+function print_neighbour_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in neighbour_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("__neigh_create@net/core/neighbour.c:483")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		neighbour_table["neighbour", devname]++
+		print_hold(devname)
+		print_neighbour_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("pneigh_lookup@net/core/neighbour.c:622")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		neighbour_table["neighbour", devname]++
+		print_hold(devname)
+		print_neighbour_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("pneigh_enqueue@net/core/neighbour.c:1455")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		neighbour_table["neighbour", devname]++
+		print_hold(devname)
+		print_neighbour_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("neigh_parms_alloc@net/core/neighbour.c:1489")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		neighbour_table["neighbour", devname]++
+		print_hold(devname)
+		print_neighbour_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("pneigh_queue_purge@net/core/neighbour.c:198")
+{
+	if (@defined($skb)) {
+		skb = $skb
+		devname = kernel_string(@cast(skb, "struct sk_buff")->dev->name)
+		neighbour_table["neighbour", devname]--
+		print_put(devname)
+		c = neighbour_table["neighbour", devname]
+		if ( c == 0 ) {
+			delete neighbour_table["neighbour", devname]
+		}
+		print_neighbour_table()
+	} else {
+		print_error_null("skb")
+	}
+}
+
+probe kernel.statement("pneigh_lookup@net/core/neighbour.c:625")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			neighbour_table["neighbour", devname]--
+			print_put(devname)
+			c = neighbour_table["neighbour", devname]
+			if ( c == 0 ) {
+				delete neighbour_table["neighbour", devname]
+			}
+			print_neighbour_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("pneigh_delete@net/core/neighbour.c:658")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			neighbour_table["neighbour", devname]--
+			print_put(devname)
+			c = neighbour_table["neighbour", devname]
+			if ( c == 0 ) {
+				delete neighbour_table["neighbour", devname]
+			}
+			print_neighbour_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("pneigh_ifdown@net/core/neighbour.c:680")
+{
+	if (@defined($n)) {
+		n = $n
+		dev = @cast(n, "struct pneigh_entry")->dev
+		if (dev  != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			neighbour_table["neighbour", devname]--
+			print_put(devname)
+			c = neighbour_table["neighbour", devname]
+			if ( c == 0 ) {
+				delete neighbour_table["neighbour", devname]
+			}
+			print_neighbour_table()
+		}
+	} else {
+		print_error_null("n")
+	}
+}
+
+probe kernel.statement("neigh_destroy@net/core/neighbour.c:727")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		neighbour_table["neighbour", devname]--
+		print_put(devname)
+		c = neighbour_table["neighbour", devname]
+		if ( c == 0 ) {
+			delete neighbour_table["neighbour", devname]
+		}
+		print_neighbour_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("neigh_proxy_process@net/core/neighbour.c:1411")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		neighbour_table["neighbour", devname]--
+		print_put(devname)
+		c = neighbour_table["neighbour", devname]
+		if ( c == 0 ) {
+			delete neighbour_table["neighbour", devname]
+		}
+		print_neighbour_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("neigh_parms_alloc@net/core/neighbour.c:1495")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		neighbour_table["neighbour", devname]--
+		print_put(devname)
+		c = neighbour_table["neighbour", devname]
+		if ( c == 0 ) {
+			delete neighbour_table["neighbour", devname]
+		}
+		print_neighbour_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("neigh_parms_release@net/core/neighbour.c:1532")
+{
+	if (@defined($parms)) {
+		parms = $parms
+		dev = @cast(parms, "struct neigh_parms")->dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			neighbour_table["neighbour", devname]--
+			print_put(devname)
+			c = neighbour_table["neighbour", devname]
+			if ( c == 0 ) {
+				delete neighbour_table["neighbour", devname]
+			}
+			print_neighbour_table()
+		}
+	} else {
+		print_error_null("parms")
+	}
+}
+
+
+global netsysfs_table
+function print_netsysfs_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in netsysfs_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("rx_queue_add_kobject@net/core/net-sysfs.c:893")
+{
+	if(@defined($queue)) {
+		queue = $queue
+		devname = kernel_string(@cast(queue, "struct netdev_rx_queue")->dev->name)
+		netsysfs_table["netsysfs", devname]++
+		print_hold(devname)
+		print_netsysfs_table()
+	} else {
+		print_error_null("queue")
+	}
+}
+
+probe kernel.statement("netdev_queue_add_kobject@net/core/net-sysfs.c:1268")
+{
+	if(@defined($queue)) {
+		queue = $queue
+		devname = kernel_string(@cast(queue, "struct netdev_queue")->dev->name)
+		netsysfs_table["netsysfs", devname]++
+		print_hold(devname)
+		print_netsysfs_table()
+	} else {
+		print_error_null("queue")
+	}
+}
+
+probe kernel.statement("rx_queue_release@net/core/net-sysfs.c:870")
+{
+	if(@defined($queue)) {
+		queue = $queue
+		devname = kernel_string(@cast(queue, "struct netdev_rx_queue")->dev->name)
+		netsysfs_table["netsysfs", devname]--
+		print_put(devname)
+		c = netsysfs_table["netsysfs", devname]
+		if ( c == 0 ) {
+			delete netsysfs_table["netsysfs", devname]
+		}
+		print_netsysfs_table()
+	} else {
+		print_error_null("queue")
+	}
+}
+
+probe kernel.statement("netdev_queue_release@net/core/net-sysfs.c:1241")
+{
+	if(@defined($queue)) {
+		queue = $queue
+		devname = kernel_string(@cast(queue, "struct netdev_queue")->dev->name)
+		netsysfs_table["netsysfs", devname]--
+		print_put(devname)
+		c = netsysfs_table["netsysfs", devname]
+		if ( c == 0 ) {
+			delete netsysfs_table["netsysfs", devname]
+		}
+		print_netsysfs_table()
+	} else {
+		print_error_null("queue")
+	}
+}
+
+
+global netpoll_table
+function print_netpoll_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in netpoll_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("netpoll_setup@net/core/netpoll.c:667")
+{
+	if(@defined($ndev)) {
+		dev = $ndev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		netpoll_table["netpoll", devname]++
+		print_hold(devname)
+		print_netpoll_table()
+	}
+}
+
+probe kernel.statement("netpoll_setup@net/core/netpoll.c:768")
+{
+	if(@defined($ndev)) {
+		dev = $ndev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			netpoll_table["netpoll", devname]--
+			print_put(devname)
+			c = netpoll_table["netpoll", devname]
+			if ( c == 0 ) {
+				delete netpoll_table["netpoll", devname]
+			}
+			print_netpoll_table()
+		}
+	}
+}
+
+probe kernel.statement("netpoll_cleanup@net/core/netpoll.c:847")
+{
+	if(@defined($np)) {
+		np = $np
+		dev = @cast(np, "struct netpoll")->dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		netpoll_table["netpoll", devname]--
+		print_put(devname)
+		c = netpoll_table["netpoll", devname]
+		if ( c == 0 ) {
+			delete netpoll_table["netpoll", devname]
+		}
+		print_netpoll_table()
+	}
+}
+
+global devinet_table
+function print_devinet_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in devinet_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("__ip_dev_find@net/ipv4/devinet.c:169")
+{
+	if(@defined($result) && @defined($devref)) {
+		dev = $result
+		devref = $devref
+		if ( dev != NULL && devref != 0) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			devinet_table["devinet", devname]++
+			print_hold(devname)
+			print_devinet_table()
+		}
+	} else {
+		print_error_null("result or devref")
+	}
+}
+
+probe kernel.statement("inetdev_init@net/ipv4/devinet.c:255")
+{
+	if(@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		devinet_table["devinet", devname]++
+		print_hold(devname)
+		print_devinet_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("in_dev_finish_destroy@net/ipv4/devinet.c:224")
+{
+	if(@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		devinet_table["devinet", devname]--
+		print_put(devname)
+		c = devinet_table["devinet", devname]
+		if ( c == 0 ) {
+			delete devinet_table["devinet", devname]
+		}
+		print_devinet_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+
+global fibsematics_table
+function print_fibsematics_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in fibsematics_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("fib_check_nh@net/ipv4/fib_semantics.c:732")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		fibsematics_table["fibsematics", devname]++
+		print_hold(devname)
+		print_fibsematics_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("fib_check_nh@net/ipv4/fib_semantics.c:761")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		fibsematics_table["fibsematics", devname]++
+		print_hold(devname)
+		print_fibsematics_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("fib_check_nh@net/ipv4/fib_semantics.c:778")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		fibsematics_table["fibsematics", devname]++
+		print_hold(devname)
+		print_fibsematics_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("free_fib_info_rcu@net/ipv4/fib_semantics.c:211")
+{
+	if (@defined($nexthop_nh)) {
+		nexthop_nh = $nexthop_nh
+		dev = @cast(nexthop_nh, "struct fib_nh")->nh_dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			fibsematics_table["fibsematics", devname]--
+			print_put(devname)
+			c = fibsematics_table["fibsemantics", devname]
+			if ( c == 0 ) {
+				delete fibsematics_table["fibsematics", devname]
+			}
+			print_fibsematics_table()
+		}
+	} else {
+		print_error_null("nexthop_nh")
+	}
+}
+
+
+/*
+global ipmr_table
+function print_ipmr_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in ipmr_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+*/
+
+global route_table
+function print_route_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in route_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("rt_flush_dev@net/ipv4/route.c:1380")
+{
+	if (@defined($rt)) {
+		rt = $rt
+		devname = kernel_string(@cast(rt, "struct rtable")->dst->dev->name)
+		route_table["route", devname]++
+		print_hold(devname)
+		print_route_table()
+	} else {
+		print_error_null("rt")
+	}
+}
+
+probe kernel.statement("ipv4_blackhole_route@net/ipv4/route.c:2381")
+{
+	if (@defined($new)) {
+		new = $new
+		dev = @cast(new, "struct dst_entry")->dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			route_table["route", devname]++
+			print_hold(devname)
+			print_route_table()
+		}
+	} else {
+		print_error_null("new")
+	}
+}
+
+probe kernel.statement("rt_flush_dev@net/ipv4/route.c:1380")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		route_table["route", devname]--
+		print_put(devname)
+		c = route_table["route", devname]
+		if ( c == 0 ) {
+			delete route_table["route", devname]
+		}
+		print_route_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+
+global nfqueue_table
+function print_nfqueue_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2, var3] in nfqueue_table) {
+		printf("cnt %d, %s %s %s\n", cnt, var1, var2, var3)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("nf_queue_entry_get_refs@net/netfilter/nf_queue.c:105")
+{
+	if (@defined($state)) {
+		state = $state
+		in_dev = @cast(state, "struct nf_hook_state")->in
+		out_dev = @cast(state, "struct nf_hook_state")->out
+		if( in_dev != NULL ) {
+			in_devname = kernel_string(@cast(in_dev, "struct net_device")->name)
+			nfqueue_table["nfqueue", "state_in", in_devname]++
+			print_hold(in_devname)
+		}
+		if( out_dev != NULL ) {
+			out_devname = kernel_string(@cast(out_dev, "struct net_device")->name)
+			nfqueue_table["nfqueue", "state_out", out_devname]++
+			print_hold(out_devname)
+		}
+		print_nfqueue_table()
+	} else {
+		print_error_null("state")
+	}
+}
+
+probe kernel.statement("nf_queue_entry_release_refs@net/netfilter/nf_queue.c:73")
+{
+	if (@defined($state)) {
+		state = $state
+		in_dev = @cast(state, "struct nf_hook_state")->in
+		out_dev = @cast(state, "struct nf_hook_state")->out
+		if( in_dev != NULL ) {
+			in_devname = kernel_string(@cast(in_dev, "struct net_device")->name)
+			nfqueue_table["nfqueue", "state_in", in_devname]--
+			print_put(in_devname)
+			c = nfqueue_table["nfqueue", "state_in", in_devname]
+			if ( c == 0 ) {
+				delete nfqueue_table["nfqueue", "state_in", in_devname]
+			}
+		}
+		if( out_dev != NULL ) {
+			out_devname = kernel_string(@cast(out_dev, "struct net_device")->name)
+			nfqueue_table["nfqueue", "state_out", out_devname]--
+			print_put(out_devname)
+			c = nfqueue_table["nfqueue", "state_out", out_devname]
+			if ( c == 0 ) {
+				delete nfqueue_table["nfqueue", "state_out", out_devname]
+			}
+		}
+		print_nfqueue_table()
+	} else {
+		print_error_null("state")
+	}
+}
+
+global afpacket_table
+function print_afpacket_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in afpacket_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("packet_cached_dev_get@net/packet/af_packet.c:246")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			afpacket_table["afpacket", devname]++
+			print_hold(devname)
+			print_afpacket_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+
+}
+
+probe kernel.statement("packet_do_bind@net/packet/af_packet.c:2612")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			afpacket_table["afpacket", devname]++
+			print_hold(devname)
+			print_afpacket_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("tpacket_snd@net/packet/af_packet.c:2266")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			afpacket_table["afpacket", devname]--
+			print_put(devname)
+			c = afpacket_table["afpacket", devname]
+			if ( c == 0 ) {
+				delete afpacket_table["afpacket", devname]
+			}
+			print_afpacket_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("packet_snd@net/packet/af_packet.c:2483")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			afpacket_table["afpacket", devname]--
+			print_put(devname)
+			c = afpacket_table["afpacket", devname]
+			if ( c == 0 ) {
+				delete afpacket_table["afpacket", devname]
+			}
+			print_afpacket_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("packet_snd@net/packet/af_packet.c:2486")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			afpacket_table["afpacket", devname]--
+			print_put(devname)
+			c = afpacket_table["afpacket", devname]
+			if ( c == 0 ) {
+				delete afpacket_table["afpacket", devname]
+			}
+			print_afpacket_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("packet_release@net/packet/af_packet.c:2537")
+{
+	if (@defined($po)) {
+		po = $po
+		dev = @cast(po, "struct packet_sock")->prot_hook->dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			afpacket_table["afpacket", devname]--
+			print_put(devname)
+			c = afpacket_table["afpacket", devname]
+			if ( c == 0 ) {
+				delete afpacket_table["afpacket", devname]
+			}
+			print_afpacket_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("packet_do_bind@net/packet/af_packet.c:2632")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			afpacket_table["afpacket", devname]--
+			print_put(devname)
+			c = afpacket_table["afpacket", devname]
+			if ( c == 0 ) {
+				delete afpacket_table["afpacket", devname]
+			}
+			print_afpacket_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("packet_do_bind@net/packet/af_packet.c:2644")
+{
+	if (@defined($dev_curr)) {
+		dev = $dev_curr
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			afpacket_table["afpacket", devname]--
+			print_put(devname)
+			c = afpacket_table["afpacket", devname]
+			if ( c == 0 ) {
+				delete afpacket_table["afpacket", devname]
+			}
+			print_afpacket_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("packet_notifier@net/packet/af_packet.c:3524")
+{
+	if (@defined($po)) {
+		po = $po
+		dev = @cast(po, "struct packet_sock")->prot_hook->dev
+		if ( dev != NULL ) {
+			devname = kernel_string(@cast(dev, "struct net_device")->name)
+			afpacket_table["afpacket", devname]--
+			print_put(devname)
+			c = afpacket_table["afpacket", devname]
+			if ( c == 0 ) {
+				delete afpacket_table["afpacket", devname]
+			}
+			print_afpacket_table()
+		}
+	} else {
+		print_error_null("dev")
+	}
+}
+
+
+global switchdev_table
+function print_switchdev_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in switchdev_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("switchdev_deferred_enqueue@net/switchdev/switchdev.c:174")
+{
+	if (@defined($dev)) {
+		dev = $dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		switchdev_table["switchdev", devname]++
+		print_hold(devname)
+		print_switchdev_table()
+	} else {
+		print_error_null("dev")
+	}
+}
+
+probe kernel.statement("switchdev_deferred_process@net/switchdev/switchdev.c:143")
+{
+	if (@defined($dfitem)) {
+		dfitem = $dfitem
+		dev = @cast(dfitem, "struct switchdev_deferred_item")->dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		switchdev_table["switchdev", devname]--
+		print_put(devname)
+		c = switchdev_table["switchdev", devname]
+		if ( c == 0 ) {
+			delete switchdev_table["switchdev", devname]
+		}
+		print_switchdev_table()
+	} else {
+		print_error_null("dfitem")
+	}
+}
+
+
+global xfrm_table
+function print_xfrm_table()
+{
+	printf("====== Start Array ======\n")
+	foreach (cnt = [var1, var2] in xfrm_table) {
+		printf("cnt %d, %s %s\n", cnt, var1, var2)
+	}
+	printf("====== End Array ======\n")
+}
+
+probe kernel.statement("xfrm_input@net/xfrm/xfrm_input.c:292")
+{
+	if (@defined($skb)) {
+		skb = $skb
+		dev = @cast(skb, "struct sk_buff")->dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		xfrm_table["xfrm", devname]++
+		print_hold(devname)
+		print_xfrm_table()
+	} else {
+		print_error_null("skb")
+	}
+}
+
+probe kernel.statement("xfrm_input@net/xfrm/xfrm_input.c:300")
+{
+	if (@defined($skb)) {
+		skb = $skb
+		dev = @cast(skb, "struct sk_buff")->dev
+		devname = kernel_string(@cast(dev, "struct net_device")->name)
+		xfrm_table["xfrm", devname]--
+		print_hold(devname)
+		c = xfrm_table["xfrm", devname]
+		if ( c == 0 ) {
+			delete xfrm_table["xfrm", devname]
+		}
+		print_xfrm_table()
+	} else {
+		print_error_null("skb")
+	}
+}
+
+function print_all_table()
+{
+	print_dst_table()
+	print_macvtap_table()
+	print_tun_table()
+	print_bridge_table()
+	print_dev_table()
+	print_ethtool_table()
+	print_neighbour_table()
+	print_netsysfs_table()
+	print_netpoll_table()
+	print_devinet_table()
+	print_fibsematics_table()
+	print_route_table()
+	print_nfqueue_table()
+	print_afpacket_table()
+	print_switchdev_table()
+	print_xfrm_table()
+}
