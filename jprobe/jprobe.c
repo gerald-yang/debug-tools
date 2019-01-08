@@ -8,7 +8,6 @@ static void my_scsi_softirq_done(struct request *rq)
 	dump_stack();
 	/* Always end with a call to jprobe_return(). */
 	jprobe_return();
-	return 0;
 }
 
 static struct jprobe my_jprobe = {
