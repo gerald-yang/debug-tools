@@ -15,7 +15,7 @@ percent="0"
 avg_latency="0"
 iter="0"
 
-rm -f tempsplit*.result
+rm -f tempsplit*
 
 for pf in tempsplit*; do
 	echo "processing $pf"
@@ -31,5 +31,6 @@ do
 	wait "$pid"
 done
 echo "done"
+
 sleep 2
-./average.sh
+./average.sh > average_latency
