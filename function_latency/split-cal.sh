@@ -8,14 +8,14 @@ fi
 trace-cmd report | grep ' us ' > temp
 total_line=$(wc -l temp | awk '{print $1}')
 echo "total line: $total_line"
+
+rm -f tempsplit*
 part=$(echo "($total_line / 20) + 1" | bc)
 split -l $part temp tempsplit
 
 percent="0"
 avg_latency="0"
 iter="0"
-
-rm -f tempsplit*
 
 for pf in tempsplit*; do
 	echo "processing $pf"
