@@ -10,16 +10,16 @@ total_line=$(wc -l temp | awk '{print $1}')
 echo "total line: $total_line"
 
 rm -f tempsplit*
-part=$(echo "($total_line / 20) + 1" | bc)
+part=$(echo "($total_line / 30) + 1" | bc)
 split -l $part temp tempsplit
 
 percent="0"
 avg_latency="0"
 iter="0"
 
-for pf in tempsplit*; do
-	echo "processing $pf"
-	./cal.sh "$pf" &
+for sf in tempsplit*; do
+	echo "processing $sf"
+	./cal.sh "$sf" &
 	pids[$iter]=$!
 	echo "add pid: ${pids[$iter]}"
 	(( iter = iter + 1 ))
@@ -31,6 +31,5 @@ do
 	wait "$pid"
 done
 echo "done"
-
 sleep 2
-./average.sh > average_latency
+./average.sh > avg_latency

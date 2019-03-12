@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pf="$1"
+sf="$1"
 
 if [ -z "$pf" ]; then
         echo "please enter file name"
@@ -10,12 +10,12 @@ fi
 result="$1".result
 echo "result" > "$result"
 
-fline=$(wc -l $pf | awk '{print $1}')
-LAT=$(awk -F 'us' '{print $1}' $pf | awk '{print $NF}')
+fline=$(wc -l $sf | awk '{print $1}')
+LAT=$(awk -F 'us' '{print $1}' $sf | awk '{print $NF}')
 part_latency="0"
 total_count="0"
 
-echo "$pf lines: $fline" >> "$result"
+echo "$sf lines: $fline" >> "$result"
 while read -r line
 do
 	p=$(echo "$total_count % 10000" | bc)
