@@ -96,7 +96,7 @@ generate_per_cpu_flamegraph() {
 	# echo $CURRENT_LINE_NR
 	# Check the empty file condition that the while loop is skipped
 	if [ "$PREV_LINE_NR" -lt "$CURRENT_LINE_NR" ] ; then
-		PCPUSCRIPT="${FPERF}$(basename "$PERF_REPORT").cpu${PREV_CPU_NR}.script"
+		PCPUSCRIPT="${OUTPUT_FOLDER}/$(basename "$PERF_REPORT").cpu${PREV_CPU_NR}.script"
 
 			# Remove the previous script to avoid reuse the previous data
 			if [ "${cpu_array[$PREV_CPU_NR]}"x == ""x ]; then
