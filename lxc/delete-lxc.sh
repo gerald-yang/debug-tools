@@ -16,6 +16,7 @@ fi
 CONTAINER_NAME="$1"
 
 echo "stopping container $CONTAINER_NAME"
+lxc stop "$CONTAINER_NAME"
 
 echo "deleting container $CONTAINER_NAME"
 lxc delete "$CONTAINER_NAME"
