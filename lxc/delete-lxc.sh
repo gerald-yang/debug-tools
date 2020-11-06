@@ -16,12 +16,6 @@ fi
 CONTAINER_NAME="$1"
 
 echo "stopping container $CONTAINER_NAME"
-lxc stop "$CONTAINER_NAME"
-if [ "$?" != "0" ]; then
-	echo "stop $CONTAINER_NAME failed"
-	exit 1
-fi
-echo "done"
 
 echo "deleting container $CONTAINER_NAME"
 lxc delete "$CONTAINER_NAME"
