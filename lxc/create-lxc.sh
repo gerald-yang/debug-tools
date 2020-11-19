@@ -5,6 +5,9 @@ usage() {
 	echo "Usage:"
 	echo "create-lxc.sh UBUNT_SERIES CONTAINER_NAME STORAGE_SIZE [NEED_CONFIG]"
 	echo ""
+	echo "NEED_CONFIG: yes or no(default)"
+	echo "             setup ssh/gpg key and copy/clone tools"
+	echo ""
 }
 
 config_container() {
