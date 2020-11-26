@@ -99,22 +99,21 @@ int trace_req_completion(struct pt_regs *ctx, struct request *req)
     }
     ts = bpf_ktime_get_ns();
     data.delta = ts - *tsp;
-    if ((data.delta / 1000000) > ###THRESHOLD###) {
-        data.ts = ts / 1000;
+    data.ts = ts / 1000;
 
-        valp = infobyreq.lookup(&req);
-        if (valp == 0) {
-            data.len = req->__data_len;
-            strcpy(data.name, "?");
-        } else {
-            data.pid = valp->pid;
-            data.len = req->__data_len;
-            data.sector = req->__sector;
-            bpf_probe_read(&data.name, sizeof(data.name), valp->name);
-            struct gendisk *rq_disk = req->rq_disk;
-            bpf_probe_read(&data.disk_name, sizeof(data.disk_name),
-                           rq_disk->disk_name);
-        }
+    valp = infobyreq.lookup(&req);
+    if (valp == 0) {
+        data.len = req->__data_len;
+        strcpy(data.name, "?");
+    } else {
+        data.pid = valp->pid;
+        data.len = req->__data_len;
+        data.sector = req->__sector;
+        bpf_probe_read(&data.name, sizeof(data.name), valp->name);
+        struct gendisk *rq_disk = req->rq_disk;
+        bpf_probe_read(&data.disk_name, sizeof(data.disk_name),
+                       rq_disk->disk_name);
+    }
 
 /*
  * The following deals with a kernel version change (in mainline 4.7, although
@@ -124,15 +123,14 @@ int trace_req_completion(struct pt_regs *ctx, struct request *req)
  * test, and maintenance burden.
  */
 #ifdef REQ_WRITE
-        data.rwflag = !!(req->cmd_flags & REQ_WRITE);
+    data.rwflag = !!(req->cmd_flags & REQ_WRITE);
 #elif defined(REQ_OP_SHIFT)
-        data.rwflag = !!((req->cmd_flags >> REQ_OP_SHIFT) == REQ_OP_WRITE);
+    data.rwflag = !!((req->cmd_flags >> REQ_OP_SHIFT) == REQ_OP_WRITE);
 #else
-        data.rwflag = !!((req->cmd_flags & REQ_OP_MASK) == REQ_OP_WRITE);
+    data.rwflag = !!((req->cmd_flags & REQ_OP_MASK) == REQ_OP_WRITE);
 #endif
 
-        events.perf_submit(ctx, &data, sizeof(data));
-    }
+    events.perf_submit(ctx, &data, sizeof(data));
     start.delete(&req);
     infobyreq.delete(&req);
 
@@ -140,20 +138,12 @@ int trace_req_completion(struct pt_regs *ctx, struct request *req)
 }
 """
 
-# create argument parser
 parser = argparse.ArgumentParser(description='Record disk latency for all IO requests')
 parser.add_argument('--rootdisk', help='root disk to be excluded', default='sdac')
-parser.add_argument('--threshold', help='record disk lantecy exceeding threshold(millisecond)', type=long, default='400')
-parser.add_argument('--period', help='if disk latency exceeds threshold and keeps for a perfiod of time, log error messages', type=long, default='30')
 args = parser.parse_args()
 
-# replace with argument
-bpf_text = bpf_text.replace("##ROOTDISK##", args.rootdisk)
-bpf_text = bpf_text.replace("##ROOTDISKLEN##", str(len(args.rootdisk)))
-bpf_text = bpf_text.replace("###THRESHOLD###", str(args.threshold))
-
 # load BPF program
-b = BPF(text=bpf_text, debug=0)
+b = BPF(text=bpf_text.replace("##ROOTDISK##", args.rootdisk).replace("##ROOTDISKLEN##", str(len(args.rootdisk))), debug=0)
 b.attach_kprobe(event="blk_account_io_start", fn_name="trace_pid_start")
 b.attach_kprobe(event="blk_start_request", fn_name="trace_req_start")
 b.attach_kprobe(event="blk_mq_start_request", fn_name="trace_req_start")
@@ -183,8 +173,7 @@ rwflg = ""
 start_ts = 0
 prev_ts = 0
 delta = 0
-high_latency_start = {}
-high_latency_curr= {}
+is_increase = {}
 
 # process event
 def print_event(cpu, data, size):
@@ -194,9 +183,7 @@ def print_event(cpu, data, size):
     global start_ts
     global prev_ts
     global delta
-    global args
-    global high_latency_start
-    global high_latency_curr
+    global is_increase
 
     if event.rwflag == 1:
         rwflg = "W"
@@ -214,30 +201,15 @@ def print_event(cpu, data, size):
         delta = float(delta) + (event.ts - prev_ts)
 
     dname = event.disk_name.decode()
-    print("%-14.9f %-14.14s %-6s %-7s %-2s %-9s %-7s %7.2f" % (
-        delta / 1000000, event.name.decode(), event.pid,
-        dname, rwflg, val,
-        event.len, float(event.delta) / 1000000))
+    if dname not in is_increase:
+        is_increase[dname] = 0
 
-    # track high disk latency start and current timestamp in second for each device
-    # if it keeps happening every second for a 'period' of time, print error message
-    # if it doesn't happend more than 2 seconds, reset counters and start over
-
-    temp_latency = long(delta / 1000000)
-    if dname in high_latency_start:
-        if temp_latency > high_latency_curr[dname] + 1:
-            high_latency_start[dname] = temp_latency
-            high_latency_curr[dname] = temp_latency
-        else:
-            high_latency_curr[dname] = temp_latency
-            if (high_latency_curr[dname] - high_latency_start[dname]) >= args.period:
-                print("Error: high latency on %s more than %d seconds" %(dname, args.period))
-    else:
-        high_latency_start[dname] = temp_latency
-        high_latency_curr[dname] = temp_latency
-
-    #print(high_latency_start)
-    #print(high_latency_curr)
+    if float(event.delta) / 1000000 > is_increase[dname]:
+        print("%-14.9f %-14.14s %-6s %-7s %-2s %-9s %-7s %7.2f" % (
+            delta / 1000000, event.name.decode(), event.pid,
+            dname, rwflg, val,
+            event.len, float(event.delta) / 1000000))
+        is_increase[dname] = float(event.delta) / 1000000 * 0.9
 
     prev_ts = event.ts
     start_ts = 1
