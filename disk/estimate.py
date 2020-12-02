@@ -94,11 +94,24 @@ typedef struct disk_key {
 BPF_HASH(start, struct request *);
 STORAGE
 
+static int strcmp_workaround(char *name, char *osd_name, int len)
+{
+    int i;
+
+    for (i = 0; i < len; i++) {
+        if (name[i] != osd_name[i])
+            return 1;
+    }
+
+    return 0;
+}
+
 // time block I/O
 int trace_req_start(struct pt_regs *ctx, struct request *req)
 {
     u64 ts = bpf_ktime_get_ns();
-    start.update(&req, &ts);
+    if (strcmp_workaround(req->rq_disk->disk_name, "ROOTDISK", RDLEN))
+        start.update(&req, &ts);
     return 0;
 }
 
@@ -137,6 +150,9 @@ bpf_text = bpf_text.replace('STORE',
     'disk_key_t key = {.slot = bpf_log2l(delta)}; ' +
     'bpf_probe_read(&key.disk, sizeof(key.disk), ' +
     'req->rq_disk->disk_name); dist.increment(key);')
+
+bpf_text = bpf_text.replace("ROOTDISK", args.rootdisk)
+bpf_text = bpf_text.replace("RDLEN", str(len(args.rootdisk)))
 
 if debug:
     print(bpf_text)
