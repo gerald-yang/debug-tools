@@ -18,6 +18,7 @@ from bcc import BPF
 import ctypes as ct
 import re
 import argparse
+import datetime
 
 bpf_text="""
 #include <uapi/linux/ptrace.h>
@@ -143,8 +144,9 @@ int trace_req_completion(struct pt_regs *ctx, struct request *req)
 # create argument parser
 parser = argparse.ArgumentParser(description='Record disk latency for all IO requests')
 parser.add_argument('--rootdisk', help='root disk to be excluded', default='sdac')
-parser.add_argument('--threshold', help='record disk lantecy exceeding threshold(millisecond)', type=long, default='400')
-parser.add_argument('--period', help='if disk latency exceeds threshold and keeps for a perfiod of time, log error messages', type=long, default='30')
+parser.add_argument('--threshold', help='log disk lantecy exceeding threshold (millisecond)', type=long, default='400')
+parser.add_argument('--period', help='if disk latency exceeds threshold for a perfiod of time, log error messages', type=long, default='30')
+parser.add_argument('--interval', help='if high disk latency does not happen within internal, reset counter', type=long, default='30')
 args = parser.parse_args()
 
 # replace with argument
@@ -180,18 +182,17 @@ print("%-14s %-14s %-6s %-7s %-2s %-9s %-7s %7s" % ("TIME(s)", "COMM", "PID",
     "DISK", "T", "SECTOR", "BYTES", "LAT(ms)"))
 
 rwflg = ""
-start_ts = 0
-prev_ts = 0
-delta = 0
+prev_ts = {}
+delta = {}
 high_latency_start = {}
 high_latency_curr= {}
 
 # process event
 def print_event(cpu, data, size):
     event = ct.cast(data, ct.POINTER(Data)).contents
+    dname = event.disk_name.decode()
 
     val = -1
-    global start_ts
     global prev_ts
     global delta
     global args
@@ -207,31 +208,31 @@ def print_event(cpu, data, size):
     if not re.match(b'\?', event.name):
         val = event.sector
 
-    if start_ts == 0:
-        prev_ts = start_ts
+    if dname in prev_ts:
+        delta[dname] = float(delta[dname]) + (event.ts - prev_ts[dname])
+    else:
+        prev_ts[dname] = 0
+        delta[dname] = 0
+    print(prev_ts)
+    print(delta)
 
-    if start_ts == 1:
-        delta = float(delta) + (event.ts - prev_ts)
-
-    dname = event.disk_name.decode()
-    print("%-14.9f %-14.14s %-6s %-7s %-2s %-9s %-7s %7.2f" % (
-        delta / 1000000, event.name.decode(), event.pid,
-        dname, rwflg, val,
-        event.len, float(event.delta) / 1000000))
+    print("%s %-14.14s %-6s %-7s %-2s %-9s %-7s %7.2f" % (
+        datetime.datetime.now(), event.name.decode(), event.pid,
+        dname, rwflg, val, event.len, float(event.delta) / 1000000))
 
     # track high disk latency start and current timestamp in second for each device
     # if it keeps happening every second for a 'period' of time, print error message
     # if it doesn't happend more than 2 seconds, reset counters and start over
 
-    temp_latency = long(delta / 1000000)
+    temp_latency = long(delta[dname] / 1000000)
     if dname in high_latency_start:
-        if temp_latency > high_latency_curr[dname] + 1:
+        if temp_latency >= high_latency_curr[dname] + args.period:
             high_latency_start[dname] = temp_latency
             high_latency_curr[dname] = temp_latency
         else:
             high_latency_curr[dname] = temp_latency
             if (high_latency_curr[dname] - high_latency_start[dname]) >= args.period:
-                print("Error: high latency on %s more than %d seconds" %(dname, args.period))
+                print("%s: high latency on %s more than %d seconds (interval: %d)" %(datetime.datetime.now(), dname, args.period, args.interval))
     else:
         high_latency_start[dname] = temp_latency
         high_latency_curr[dname] = temp_latency
@@ -239,8 +240,7 @@ def print_event(cpu, data, size):
     #print(high_latency_start)
     #print(high_latency_curr)
 
-    prev_ts = event.ts
-    start_ts = 1
+    prev_ts[dname] = event.ts
 
 # loop with callback to print_event
 b["events"].open_perf_buffer(print_event, page_cnt=64)

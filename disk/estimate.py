@@ -1,84 +1,104 @@
-#!/usr/bin/python
+#! /usr/bin/python2
 # @lint-avoid-python-3-compatibility-imports
 #
-# biosnoop  Trace block device I/O and print details including issuing PID.
+# biolatency    Summarize block device I/O latency as a histogram.
 #       For Linux, uses BCC, eBPF.
 #
-# This uses in-kernel eBPF maps to cache process details (PID and comm) by I/O
-# request, as well as a starting timestamp for calculating I/O latency.
+# USAGE: biolatency [-h] [-T] [-Q] [-m] [-D] [interval]
 #
 # Copyright (c) 2015 Brendan Gregg.
 # Licensed under the Apache License, Version 2.0 (the "License")
 #
-# 16-Sep-2015   Brendan Gregg   Created this.
-# 11-Feb-2016   Allan McAleavy  updated for BPF_PERF_OUTPUT
+# 20-Sep-2015   Brendan Gregg   Created this.
 
 from __future__ import print_function
 from bcc import BPF
-import ctypes as ct
-import re
+from time import sleep, strftime
 import argparse
+import datetime
+import ctypes as ct
 
-bpf_text="""
+log2_index_max = 65
+
+def _print_log2_hist(vals, val_type):
+    log2_dist_max = 64
+    idx_max = -1
+    val_max = 0
+
+    for i, v in enumerate(vals):
+        if v > 0: idx_max = i
+        if v > val_max: val_max = v
+
+    if idx_max <= 32:
+        header = "log :      %-19s : count"
+        body = "%3d : %10d -> %-10d : %-8d"
+    else:
+        header = "log :                %-29s : count"
+        body = "%3d : %20d -> %-20d : %-8d"
+
+    if idx_max > 0:
+        print(header % val_type)
+
+    for i in range(1, idx_max + 1):
+        low = (1 << i) >> 1
+        high = (1 << i) - 1
+        if (low == high):
+            low -= 1
+        val = vals[i]
+
+        print(body % (i-1, low, high, val))
+
+def print_log2_hist(dist, val_type="value", section_header="Bucket ptr"):
+    if isinstance(dist.Key(), ct.Structure):
+        tmp = {}
+        f1 = dist.Key._fields_[0][0]
+        f2 = dist.Key._fields_[1][0]
+        for k, v in dist.items():
+            bucket = getattr(k, f1)
+            vals = tmp[bucket] = tmp.get(bucket, [0] * log2_index_max)
+            slot = getattr(k, f2)
+            vals[slot] = v.value
+        for bucket, vals in tmp.items():
+            print("\n%s = %s" % (section_header, bucket))
+            _print_log2_hist(vals, val_type)
+
+# arguments
+examples = """examples:
+    ./biolatency                        # summarize block I/O latency as a histogram
+    ./biolatency 1                      # print 1 second summaries
+    ./biolatency -m 1                   # 1s summaries, milliseconds
+    ./biolatency -m 1 --rootdisk sda    # 1s summaries, milliseconds, exclude sda
+"""
+parser = argparse.ArgumentParser(
+    description="Summarize block device I/O latency as a histogram",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    epilog=examples)
+parser.add_argument("-m", "--milliseconds", action="store_true",
+    help="millisecond histogram")
+parser.add_argument("-R", "--rootdisk", default="sdac",
+    help="ignore root disk")
+parser.add_argument("interval", nargs="?", default=60,
+    help="output interval, in seconds")
+args = parser.parse_args()
+debug = 0
+
+# define BPF program
+bpf_text = """
 #include <uapi/linux/ptrace.h>
 #include <linux/blkdev.h>
 
-struct val_t {
-    u32 pid;
-    char name[TASK_COMM_LEN];
-};
-
-struct data_t {
-    u32 pid;
-    u64 rwflag;
-    u64 delta;
-    u64 sector;
-    u64 len;
-    u64 ts;
-    char disk_name[DISK_NAME_LEN];
-    char name[TASK_COMM_LEN];
-};
-
+typedef struct disk_key {
+    char disk[DISK_NAME_LEN];
+    u64 slot;
+} disk_key_t;
 BPF_HASH(start, struct request *);
-BPF_HASH(infobyreq, struct request *, struct val_t);
-BPF_PERF_OUTPUT(events);
-
-static int strcmp_workaround(char *name, char *osd_name, int len)
-{
-    int i;
-
-    for (i = 0; i < len; i++) {
-        if (name[i] != osd_name[i])
-            return 1;
-    }
-
-    return 0;
-}
-
-// cache PID and comm by-req
-int trace_pid_start(struct pt_regs *ctx, struct request *req)
-{
-    struct val_t val = {};
-
-    if (bpf_get_current_comm(&val.name, sizeof(val.name)) == 0) {
-        if (strcmp_workaround(req->rq_disk->disk_name, "##ROOTDISK##", ##ROOTDISKLEN##)) {
-            val.pid = bpf_get_current_pid_tgid();
-            infobyreq.update(&req, &val);
-        }
-    }
-    return 0;
-}
+STORAGE
 
 // time block I/O
 int trace_req_start(struct pt_regs *ctx, struct request *req)
 {
-    u64 ts;
-
-    if (infobyreq.lookup(&req)) {
-        ts = bpf_ktime_get_ns();
-        start.update(&req, &ts);
-    }
-
+    u64 ts = bpf_ktime_get_ns();
+    start.update(&req, &ts);
     return 0;
 }
 
@@ -86,135 +106,66 @@ int trace_req_start(struct pt_regs *ctx, struct request *req)
 int trace_req_completion(struct pt_regs *ctx, struct request *req)
 {
     u64 *tsp, delta;
-    u32 *pidp = 0;
-    struct val_t *valp;
-    struct data_t data = {};
-    u64 ts;
 
     // fetch timestamp and calculate delta
     tsp = start.lookup(&req);
     if (tsp == 0) {
-        // missed tracing issue
-        return 0;
+        return 0;   // missed issue
     }
-    ts = bpf_ktime_get_ns();
-    data.delta = ts - *tsp;
-    data.ts = ts / 1000;
+    delta = bpf_ktime_get_ns() - *tsp;
+    FACTOR
 
-    valp = infobyreq.lookup(&req);
-    if (valp == 0) {
-        data.len = req->__data_len;
-        strcpy(data.name, "?");
-    } else {
-        data.pid = valp->pid;
-        data.len = req->__data_len;
-        data.sector = req->__sector;
-        bpf_probe_read(&data.name, sizeof(data.name), valp->name);
-        struct gendisk *rq_disk = req->rq_disk;
-        bpf_probe_read(&data.disk_name, sizeof(data.disk_name),
-                       rq_disk->disk_name);
-    }
+    // store as histogram
+    STORE
 
-/*
- * The following deals with a kernel version change (in mainline 4.7, although
- * it may be backported to earlier kernels) with how block request write flags
- * are tested. We handle both pre- and post-change versions here. Please avoid
- * kernel version tests like this as much as possible: they inflate the code,
- * test, and maintenance burden.
- */
-#ifdef REQ_WRITE
-    data.rwflag = !!(req->cmd_flags & REQ_WRITE);
-#elif defined(REQ_OP_SHIFT)
-    data.rwflag = !!((req->cmd_flags >> REQ_OP_SHIFT) == REQ_OP_WRITE);
-#else
-    data.rwflag = !!((req->cmd_flags & REQ_OP_MASK) == REQ_OP_WRITE);
-#endif
-
-    events.perf_submit(ctx, &data, sizeof(data));
     start.delete(&req);
-    infobyreq.delete(&req);
-
     return 0;
 }
 """
 
-parser = argparse.ArgumentParser(description='Record disk latency for all IO requests')
-parser.add_argument('--rootdisk', help='root disk to be excluded', default='sdac')
-args = parser.parse_args()
+# code substitutions
+if args.milliseconds:
+    bpf_text = bpf_text.replace('FACTOR', 'delta /= 1000000;')
+    label = "msecs"
+else:
+    bpf_text = bpf_text.replace('FACTOR', 'delta /= 1000;')
+    label = "usecs"
+
+bpf_text = bpf_text.replace('STORAGE',
+'BPF_HISTOGRAM(dist, disk_key_t);')
+bpf_text = bpf_text.replace('STORE',
+    'disk_key_t key = {.slot = bpf_log2l(delta)}; ' +
+    'bpf_probe_read(&key.disk, sizeof(key.disk), ' +
+    'req->rq_disk->disk_name); dist.increment(key);')
+
+if debug:
+    print(bpf_text)
 
 # load BPF program
-b = BPF(text=bpf_text.replace("##ROOTDISK##", args.rootdisk).replace("##ROOTDISKLEN##", str(len(args.rootdisk))), debug=0)
-b.attach_kprobe(event="blk_account_io_start", fn_name="trace_pid_start")
+b = BPF(text=bpf_text)
 b.attach_kprobe(event="blk_start_request", fn_name="trace_req_start")
 b.attach_kprobe(event="blk_mq_start_request", fn_name="trace_req_start")
 b.attach_kprobe(event="blk_account_io_completion",
     fn_name="trace_req_completion")
 
-TASK_COMM_LEN = 16  # linux/sched.h
-DISK_NAME_LEN = 32  # linux/genhd.h
+print("Tracing block device I/O... Hit Ctrl-C to end.")
 
-class Data(ct.Structure):
-    _fields_ = [
-        ("pid", ct.c_ulonglong),
-        ("rwflag", ct.c_ulonglong),
-        ("delta", ct.c_ulonglong),
-        ("sector", ct.c_ulonglong),
-        ("len", ct.c_ulonglong),
-        ("ts", ct.c_ulonglong),
-        ("disk_name", ct.c_char * DISK_NAME_LEN),
-        ("name", ct.c_char * TASK_COMM_LEN)
-    ]
+# output
+exiting = 0 if args.interval else 1
+dist = b.get_table("dist")
+while (1):
+    try:
+        sleep(int(args.interval))
+    except KeyboardInterrupt:
+        exiting = 1
 
-# header
-print("%-14s %-14s %-6s %-7s %-2s %-9s %-7s %7s" % ("TIME(s)", "COMM", "PID",
-    "DISK", "T", "SECTOR", "BYTES", "LAT(ms)"))
+    print()
+    print(datetime.datetime.now())
 
-rwflg = ""
-start_ts = 0
-prev_ts = 0
-delta = 0
-is_increase = {}
+    #dist.print_log2_hist(label, "disk")
+    print_log2_hist(dist, label, "disk")
 
-# process event
-def print_event(cpu, data, size):
-    event = ct.cast(data, ct.POINTER(Data)).contents
+    dist.clear()
 
-    val = -1
-    global start_ts
-    global prev_ts
-    global delta
-    global is_increase
-
-    if event.rwflag == 1:
-        rwflg = "W"
-
-    if event.rwflag == 0:
-        rwflg = "R"
-
-    if not re.match(b'\?', event.name):
-        val = event.sector
-
-    if start_ts == 0:
-        prev_ts = start_ts
-
-    if start_ts == 1:
-        delta = float(delta) + (event.ts - prev_ts)
-
-    dname = event.disk_name.decode()
-    if dname not in is_increase:
-        is_increase[dname] = 0
-
-    if float(event.delta) / 1000000 > is_increase[dname]:
-        print("%-14.9f %-14.14s %-6s %-7s %-2s %-9s %-7s %7.2f" % (
-            delta / 1000000, event.name.decode(), event.pid,
-            dname, rwflg, val,
-            event.len, float(event.delta) / 1000000))
-        is_increase[dname] = float(event.delta) / 1000000 * 0.9
-
-    prev_ts = event.ts
-    start_ts = 1
-
-# loop with callback to print_event
-b["events"].open_perf_buffer(print_event, page_cnt=64)
-while 1:
-    b.kprobe_poll()
+    if exiting:
+        exit()
