@@ -146,7 +146,7 @@ parser = argparse.ArgumentParser(description='Record disk latency for all IO req
 parser.add_argument('--rootdisk', help='root disk to be excluded', default='sdac')
 parser.add_argument('--threshold', help='log disk lantecy exceeding threshold (millisecond)', type=long, default='400')
 parser.add_argument('--period', help='if disk latency exceeds threshold for a perfiod of time, log error messages', type=long, default='30')
-parser.add_argument('--interval', help='if high disk latency does not happen within internal, reset counter', type=long, default='30')
+parser.add_argument('--interval', help='if high disk latency does not happen within internal, reset counter', type=long, default='1')
 args = parser.parse_args()
 
 # replace with argument
@@ -213,8 +213,8 @@ def print_event(cpu, data, size):
     else:
         prev_ts[dname] = 0
         delta[dname] = 0
-    print(prev_ts)
-    print(delta)
+    #print(prev_ts)
+    #print(delta)
 
     print("%s %-14.14s %-6s %-7s %-2s %-9s %-7s %7.2f" % (
         datetime.datetime.now(), event.name.decode(), event.pid,
@@ -222,17 +222,18 @@ def print_event(cpu, data, size):
 
     # track high disk latency start and current timestamp in second for each device
     # if it keeps happening every second for a 'period' of time, print error message
-    # if it doesn't happend more than 2 seconds, reset counters and start over
+    # if it doesn't happend more than 'interval' seconds, reset counters and start over
 
     temp_latency = long(delta[dname] / 1000000)
     if dname in high_latency_start:
-        if temp_latency >= high_latency_curr[dname] + args.period:
+        if temp_latency >= high_latency_curr[dname] + args.interval:
             high_latency_start[dname] = temp_latency
             high_latency_curr[dname] = temp_latency
         else:
             high_latency_curr[dname] = temp_latency
             if (high_latency_curr[dname] - high_latency_start[dname]) >= args.period:
-                print("%s: high latency on %s more than %d seconds (interval: %d)" %(datetime.datetime.now(), dname, args.period, args.interval))
+                print("%s: high latency on %s more than %d seconds (interval: %d)"
+                      %(datetime.datetime.now(), dname, high_latency_curr[dname] - high_latency_start[dname], args.interval))
     else:
         high_latency_start[dname] = temp_latency
         high_latency_curr[dname] = temp_latency
