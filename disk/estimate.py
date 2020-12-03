@@ -64,10 +64,10 @@ def print_log2_hist(dist, val_type="value", section_header="Bucket ptr"):
 
 # arguments
 examples = """examples:
-    ./biolatency                        # summarize block I/O latency as a histogram
-    ./biolatency 1                      # print 1 second summaries
-    ./biolatency -m 1                   # 1s summaries, milliseconds
-    ./biolatency -m 1 --rootdisk sda    # 1s summaries, milliseconds, exclude sda
+    ./estimate.py                        # summarize block I/O latency as a histogram
+    ./esitmate.py 1                      # print 1 second summaries
+    ./estimate.py -m 1                   # 1s summaries, milliseconds
+    ./estimate.py -m 1 --rootdisk sda    # 1s summaries, milliseconds, exclude sda
 """
 parser = argparse.ArgumentParser(
     description="Summarize block device I/O latency as a histogram",
