@@ -15,7 +15,9 @@ with open(sys.argv[1], "r") as f:
         if line == '':
             break
         if line.find('disk') != -1:
+            #print(line)
             disk_name = line.rstrip('\n').split('=')[1].strip()
+            #print(disk_name)
             # create a dictionary for log/latency
             if disk_name not in estimate_sum:
                 new_dict = {}

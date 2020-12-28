@@ -129,7 +129,12 @@ int trace_req_completion(struct pt_regs *ctx, struct request *req)
     FACTOR
 
     // store as histogram
-    STORE
+    disk_key_t key = {.slot = bpf_log2l(delta)};
+    // ignore null disk name
+    if (req->rq_disk->disk_name[0] != 0) {
+        bpf_probe_read(&key.disk, sizeof(key.disk), req->rq_disk->disk_name);
+        dist.increment(key);
+    }
 
     start.delete(&req);
     return 0;
@@ -146,10 +151,6 @@ else:
 
 bpf_text = bpf_text.replace('STORAGE',
 'BPF_HISTOGRAM(dist, disk_key_t);')
-bpf_text = bpf_text.replace('STORE',
-    'disk_key_t key = {.slot = bpf_log2l(delta)}; ' +
-    'bpf_probe_read(&key.disk, sizeof(key.disk), ' +
-    'req->rq_disk->disk_name); dist.increment(key);')
 
 bpf_text = bpf_text.replace("ROOTDISK", args.rootdisk)
 bpf_text = bpf_text.replace("RDLEN", str(len(args.rootdisk)))
