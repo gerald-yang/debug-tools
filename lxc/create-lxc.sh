@@ -30,12 +30,12 @@ config_container() {
 	echo "searching container address"
 	INSTANCE_ID=0
 	for((i=0; i<100; i++)); do
-		NAME=$(lxc list --format=json | jq -r .[0].name)
-		if [ "$NAME" = "$CONTAINER_NAME" ]; then
+		NAME=$(lxc list --format=json | jq -r .[$i].name)
+		if [ "$NAME" = "$1" ]; then
 			INSTANCE_ID="$i"
 			break
 		elif [ "$NAME" = "null" ]; then
-			echo "can not find $CONTAINER_NAME"
+			echo "can not find $1"
 			exit 1
 		fi
 	done
