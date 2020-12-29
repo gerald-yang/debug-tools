@@ -54,6 +54,15 @@ config_container() {
 	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" sudo apt install linux-tools-common
 }
 
+if [ "$1" = "-c" ]; then
+        if [ -z "$2" ]; then
+                echo "enter container name to be configured"
+                exit -1
+        fi
+        config_container "$2"
+        exit 0
+fi
+
 if [ -z "$1" ]; then
 	echo "Wrong parameter 1"
 	usage
