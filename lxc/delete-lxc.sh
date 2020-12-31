@@ -7,7 +7,7 @@ usage() {
 	echo ""
 }
 
-if [ -z "$1" ]; then
+if [ -z "$1" ] || [ "$1" = "-h" ]; then
 	echo "Wrong parameter 1"
 	usage
 	exit 1
