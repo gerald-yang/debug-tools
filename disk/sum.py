@@ -1,4 +1,4 @@
-#! /usr/bin/python2
+#! /usr/bin/python3
 
 import sys
 import math
@@ -28,8 +28,8 @@ with open(sys.argv[1], "r") as f:
                 line_log = f.readline()
                 if line_log == '' or line_log == '\n':
                     break
-                log = long(line_log.split(':')[0].strip())
-                count = long(line_log.split(':')[2].rstrip('\n').strip())
+                log = int(line_log.split(':')[0].strip(), 10)
+                count = int(line_log.split(':')[2].rstrip('\n').strip(), 10)
                 if log not in estimate_sum[disk_name]:
                     estimate_sum[disk_name][log] = count
                 else:
