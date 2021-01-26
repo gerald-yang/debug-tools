@@ -10,10 +10,7 @@ from bokeh.plotting import figure, output_file, show
 from bokeh.palettes import Dark2_5 as palette
 
 examples = """examples:
-    ./estimate.py                        # summarize block I/O latency as a histogram
-    ./esitmate.py 1                      # print 1 second summaries
-    ./estimate.py -m 1                   # 1s summaries, milliseconds
-    ./estimate.py -m 1 --rootdisk sda    # 1s summaries, milliseconds, exclude sda
+    ./gen-high-lat-hist.py -i lat-distribution.log -o lat-history.html -t 32    # generate latency history that higher than 32 milliseconds
 """
 parser = argparse.ArgumentParser(
     description="Plot a disk latency history by bokeh",
@@ -23,8 +20,8 @@ parser.add_argument("-i", "--inputfile", default="latency.log",
     help="result from estimate.py")
 parser.add_argument("-o", "--outputfile", default="latency.html",
     help="output html file")
-parser.add_argument("-t", "--threshold", default=16,
-    help="threshold for high disk latency")
+parser.add_argument("-t", "--threshold", default="32",
+    help="threshold for high disk latency, power of 2")
 args = parser.parse_args()
 
 #colors has a list of colors which can be used in plots 
@@ -86,7 +83,7 @@ for disk in y_dict:
 output_file(args.outputfile)
 
 # create a new plot with a title and axis labels
-p = figure(title="High disk latency history", plot_width=1400, plot_height=800, x_axis_label="timeline", x_axis_type="datetime", y_axis_label="Number of IOs that disk latency higher than " + args.threshold + " milliseconds")
+p = figure(title="High disk latency history", plot_width=1400, plot_height=800, x_axis_label="timeline", x_axis_type="datetime", y_axis_label="Number of IOs that disk latency higher than " + args.threshold + " millisecond\(s\)")
 
 x = pd.to_datetime(x)
 for disk in y_dict:
