@@ -177,7 +177,7 @@ while (1):
         exiting = 1
 
     print()
-    print(datetime.datetime.now())
+    print("time: " + datetime.datetime.now())
 
     #dist.print_log2_hist(label, "disk")
     print_log2_hist(dist, label, "disk")
