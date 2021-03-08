@@ -39,6 +39,7 @@ with open(sys.argv[1], "r") as f:
 
 for disk in estimate_sum:
     log_len = len(estimate_sum[disk])
+    total_io = 0
     print(disk)
     for i in range(log_len):
         if i == 0:
@@ -47,4 +48,6 @@ for disk in estimate_sum:
             low = math.pow(2, i-1)
         high = math.pow(2, i)
         print("%d : %d -> %d : %d" % (i, low, high, estimate_sum[disk][i]))
+        total_io += estimate_sum[disk][i]
+    print("total IO: %d" % total_io)
     print('')
