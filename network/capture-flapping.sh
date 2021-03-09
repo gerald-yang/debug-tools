@@ -66,15 +66,16 @@ fi
 
 echo "restart tcpdump and clear logs every $restart_timeout if we don't see flapping message for peer $osd_peer"
 echo "output file: $output_file"
-echo "ports: $ports"
 
 port_p=${ports//,/ or port }
 port_p="port $port_p"
+echo "ports: $port_p"
 
 timeout="$restart_timeout"
 current_date=$(date --rfc-3339=seconds | awk '{print $1}')
 current_time=$(date --rfc-3339=seconds | awk '{print $2}' | cut -f1 -d'+')
-echo "begin capture: ${current_date}T${current_time}"
+echo "begin capture at: ${current_date}T${current_time}"
+echo ""
 
 tcpdump -nlei any $port_p -w "$output_file" &
 tcpdump_pid=$!
