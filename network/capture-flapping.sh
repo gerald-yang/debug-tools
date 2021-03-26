@@ -77,12 +77,48 @@ current_time=$(date --rfc-3339=seconds | awk '{print $2}' | cut -f1 -d'+')
 echo "begin capture at: ${current_date}T${current_time}"
 echo ""
 
-tcpdump -nlei any $port_p -w "$output_file" &
-tcpdump_pid=$!
+curr_time=$(date '+%Y.%m.%d-%H.%M.%S')
+data_dir="data-$curr_time"
+mkdir -p "$data_dir"
+bonddir="/proc/net/bonding/"
+
+function collect_sys_info()
+{
+	sys_dir=$(date '+%Y.%m.%d-%H.%M.%S')
+	mkdir -p "$data_dir/$sys_dir"
+
+	cat /proc/softirqs > "$data_dir/$sys_dir/proc-softirqs"
+	cat /proc/interrupts > "$data_dir/$sys_dir/proc-interrupts"
+	cat /proc/vmstat > "$data_dir/$sys_dir/proc-vmstat"
+	cat /proc/zoneinfo > "$data_dir/$sys_dir/proc-zoneinfo"
+	cat /proc/meminfo > "$data_dir/$sys_dir/proc-meminfo"
+	cat /proc/pagetypeinfo > "$data_dir/$sys_dir/proc-pagetypeinfo"
+	cat /proc/slabinfo > "$data_dir/$sys_dir/proc-slabinfo"
+	nstat > "$data_dir/$sys_dir/nstat"
+	netstat -s > "$data_dir/$sys_dir/netstat_-s"
+	ethtool -S enp6s0f0 > "$data_dir/$sys_dir/ethtool_-S_enp6s0f0"
+	#ethtool -S enp1s0 > "$data_dir/$sys_dir/ethtool_-S_enp1s0"
+	ip -s -s -d link show > "$data_dir/$sys_dir/ip_-s_-s_-d_link_show"
+	ip -o addr > "$data_dir/$sys_dir/ip_-o_addr"
+	cat /proc/net/snmp > "$data_dir/$sys_dir/proc-net-snmp"
+	cat /proc/net/netstat > "$data_dir/$sys_dir/proc-net-netstat"
+	cat /proc/net/softnet_stat > "$data_dir/$sys_dir/proc-net-softnet_stat"
+	cat /proc/net/sockstat > "$data_dir/$sys_dir/proc-net-sockstat"
+	tc -s qdisc show dev enp6s0f0 > "$data_dir/$sys_dir/tc_-s_qdisc_show_dev_enp6s0f0"
+	#tc -s qdisc show dev enp1s0 > "$data_dir/$sys_dir/tc_-s_qdisc_show_dev_enp1s0"
+	if [ -d $bonddir ]; then
+		mkdir -p "$data_dir/$sys_dir/bond"
+		for bond in $(ls $bonddir); do
+			cat $bonddir/$bond > "$data_dir/$sys_dir/bond/$bond"
+		done
+	fi
+}
 
 function keep_monitor()
 {
 	timeout=$((timeout - 1))
+	collect_sys_info
+
 	if ((timeout > 0)) ; then
 		echo "keep monitoring ... "
 		echo "restart tcpdump after $timeout minutes"
@@ -92,10 +128,14 @@ function keep_monitor()
 		timeout="$restart_timeout"
 		kill "$tcpdump_pid"
 		rm -rf "$output_file"
-		tcpdump -nlei any $port_p -w "$output_file" &
+		tcpdump -nlei any $port_p -w "$data_dir/$output_file" &
 		tcpdump_pid=$!
 	fi
 }
+
+collect_sys_info
+tcpdump -nlei any $port_p -w "$data_dir/$output_file" &
+tcpdump_pid=$!
 
 while true
 do

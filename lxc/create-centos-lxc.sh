@@ -26,8 +26,8 @@ config_container() {
         done
 	lxc exec "$1" -- /bin/bash -c "yum update"
 	lxc exec "$1" -- /bin/bash -c "yum install wget git openssh-server bash-completion tar libffi-devel -y"
-        if [ $"CENTOS_SERIES" = "centos7" ]; then
-	        lxc exec "$1" -- /bin/bash -c "yum install python-virtualenv centos-release-scl -y"
+        if [ "$CENTOS_SERIES" = "centos7" ]; then
+	        lxc exec "$1" -- /bin/bash -c "yum install epel-release dnf python-virtualenv centos-release-scl -y"
 	        lxc exec "$1" -- /bin/bash -c "yum-config-manager --enable rhel-server-rhscl-7-rpms"
 	        lxc exec "$1" -- /bin/bash -c "yum install devtoolset-8 -y"
 	        lxc exec "$1" -- /bin/bash -c "echo 'scl enable devtoolset-8 bash' > /root/enalbe-devtoolset-8"
