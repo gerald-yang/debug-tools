@@ -97,6 +97,7 @@ function collect_sys_info()
 	nstat > "$data_dir/$sys_dir/nstat"
 	netstat -s > "$data_dir/$sys_dir/netstat_-s"
 	ethtool -S enp6s0f0 > "$data_dir/$sys_dir/ethtool_-S_enp6s0f0"
+	ethtool -S enp6s0f1 > "$data_dir/$sys_dir/ethtool_-S_enp6s0f1"
 	#ethtool -S enp1s0 > "$data_dir/$sys_dir/ethtool_-S_enp1s0"
 	ip -s -s -d link show > "$data_dir/$sys_dir/ip_-s_-s_-d_link_show"
 	ip -o addr > "$data_dir/$sys_dir/ip_-o_addr"
@@ -105,6 +106,7 @@ function collect_sys_info()
 	cat /proc/net/softnet_stat > "$data_dir/$sys_dir/proc-net-softnet_stat"
 	cat /proc/net/sockstat > "$data_dir/$sys_dir/proc-net-sockstat"
 	tc -s qdisc show dev enp6s0f0 > "$data_dir/$sys_dir/tc_-s_qdisc_show_dev_enp6s0f0"
+	tc -s qdisc show dev enp6s0f1 > "$data_dir/$sys_dir/tc_-s_qdisc_show_dev_enp6s0f1"
 	#tc -s qdisc show dev enp1s0 > "$data_dir/$sys_dir/tc_-s_qdisc_show_dev_enp1s0"
 	if [ -d $bonddir ]; then
 		mkdir -p "$data_dir/$sys_dir/bond"
