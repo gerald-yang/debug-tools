@@ -64,8 +64,13 @@ if [ -z "$osd_log" ] || [ -z "$osd_peer" ] || [ -z "$restart_timeout" ] || [ -z 
 	exit 1
 fi
 
+curr_time=$(date '+%Y.%m.%d-%H.%M.%S')
+data_dir="data-$curr_time"
+mkdir -p "$data_dir"
+bonddir="/proc/net/bonding/"
+
 echo "restart tcpdump and clear logs every $restart_timeout if we don't see flapping message for peer $osd_peer"
-echo "output file: $output_file"
+echo "output file: $data_dir/$output_file"
 
 port_p=${ports//,/ or port }
 port_p="port $port_p"
@@ -76,11 +81,6 @@ current_date=$(date --rfc-3339=seconds | awk '{print $1}')
 current_time=$(date --rfc-3339=seconds | awk '{print $2}' | cut -f1 -d'+')
 echo "begin capture at: ${current_date}T${current_time}"
 echo ""
-
-curr_time=$(date '+%Y.%m.%d-%H.%M.%S')
-data_dir="data-$curr_time"
-mkdir -p "$data_dir"
-bonddir="/proc/net/bonding/"
 
 function collect_sys_info()
 {
@@ -129,7 +129,7 @@ function keep_monitor()
 		echo "restart tcpdump and clear logs"
 		timeout="$restart_timeout"
 		kill "$tcpdump_pid"
-		rm -rf "$output_file"
+		rm -rf "$data_dir/$output_file"
 		tcpdump -nlei any $port_p -w "$data_dir/$output_file" &
 		tcpdump_pid=$!
 	fi
