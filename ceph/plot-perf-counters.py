@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(
     epilog=examples)
 parser.add_argument("-f", "--file", default="perf-dump.txt",
     help="perf dump file")
-parser.add_argument("-c", "--config", default="plot-config",
+parser.add_argument("-c", "--config", default="config",
     help="configuration file")
 parser.add_argument("-o", "--outputd", default="osd.xxxx",
     help="output folder")
@@ -32,7 +32,7 @@ colors = itertools.cycle(palette)
 x_timeline = []
 y_dict = {}
 counters = {}
-exclude_counters = []
+counter_list = []
 
 # list of line color
 #line_color = ["red", "green", "blue", "black", "yellow", "purple", "brown"]
@@ -62,6 +62,7 @@ if not os.path.isfile(args.config):
     print("error: " + args.config + " is not a file")
     exit(1)
 
+
 try:
     os.mkdir(args.outputd)
 except OSError:
@@ -69,8 +70,10 @@ except OSError:
 else:
     print("Successfully created the directory %s " % args.outputd)
 
+#tmp = 0
+
 def get_counters_in_category(f):
-    count = 1
+    #global tmp
     while True:
         line = f.readline()
         name = line.split(':')[0].strip().strip('"')
@@ -88,7 +91,9 @@ def get_counters_in_category(f):
         else:
             value = float(line.split(':')[1].strip().strip(','))
 
-        if name not in exclude_counters:
+        #if tmp == 1:
+        #    print(name)
+        if line[0] != '#' and name in counter_list:
             if name not in y_dict:
                 y = []
                 y_dict[name] = y
@@ -100,7 +105,7 @@ def get_counters_in_category(f):
 
 
 def plot_counters(cname):
-    # output to static HTML file
+    #global tmp
     output_file(args.outputd + '/' + cname.replace(':', '-') + '.html')
 
     with open(args.file, "r") as f:
@@ -112,26 +117,27 @@ def plot_counters(cname):
                 t = line.split()[0] + '.' + line.split()[1].split('.')[0]
 
                 x_timeline.append(t)
-                #print('looking for ' + '"'+cname+'"')
                 while True:
                     line = f.readline()
                     if line.find('"'+cname+'"') != -1:
-                        #print('found ' + line)
+                        #if tmp == 1:
+                        #    print('{')
+                        #    print(cname)
                         get_counters_in_category(f)
+                        #if tmp == 1:
+                        #    print('}')
                     elif line.find('====================================================') != -1:
-                        #print('move to next one')
+                        #tmp = 0
                         break
                     else:
                         continue
 
     # create a new plot with a title and axis labels
-    p = figure(title="network counter diff", plot_width=1400, plot_height=800, x_axis_label="timeline", x_axis_type="datetime", y_axis_label="counter increased")
+    p = figure(title="perf counter diff", plot_width=1800, plot_height=2400, x_axis_label="timeline", x_axis_type="datetime", y_axis_label="counter increased")
 
     x = pd.to_datetime(x_timeline, format='%Y-%m-%d.%H:%M:%S')
-    #print(y_dict)
     line_color_iter = 0
     for c in y_dict:
-        #print(line_color_iter)
         p.line(x, y_dict[c], color=line_color[line_color_iter], legend_label=c, line_width=2)
         line_color_iter = line_color_iter + 1
 
@@ -139,7 +145,7 @@ def plot_counters(cname):
     show(p)
 
 with open(args.config, "r") as cf:
-    exclude_counters = []
+    counter_list = []
     while True:
         line = cf.readline()
         if line == '':
@@ -150,14 +156,13 @@ with open(args.config, "r") as cf:
                 line = cf.readline()
                 if line.find('}') != -1:
                     break
-                exclude_counters.append(line.rstrip("\n"))
-
-            print('plot counter: ' + cname)
-            print('exclude the following counters')
-            print(exclude_counters)
+                counter_list.append(line.rstrip("\n"))
+            
+            #tmp = 1
+            print('plotting ' + cname + ' counters')
             plot_counters(cname)
         
-        exclude_counters.clear()
+        counter_list.clear()
         y_dict.clear()
         x_timeline.clear()
         counters.clear()
