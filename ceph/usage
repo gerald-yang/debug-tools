@@ -1,0 +1,64 @@
+Usage:
+
+./plot-perf-counters.py -f [perf dump file] -c [counter list file] -d [output folder]
+
+-f : the perf dump file containing osd perf dump per minute
+-c : a perf counter list including counter category and a list of counters will plot to a chart
+-d : output folder
+
+Example:
+./plot-perf-counters.py -f pd.txt -c config.all -d osd.1234
+
+it will generate some html files according to config.all and put them into folder osd.1234
+counter list file is like below, the first row in a curly brackets is the counter category, and followed by counter names in this category
+please refer to config.all, config.all contains all perf dump counters
+you can comment out counters you don't want to plot like msgr_recv_bytes and msgr_send_bytes below
+
+{
+AsyncMessenger::Worker-2
+msgr_recv_messages
+msgr_send_messages
+#msgr_recv_bytes
+#msgr_send_bytes
+msgr_created_connections
+msgr_active_connections
+msgr_running_total_time
+msgr_running_send_time
+msgr_running_recv_time
+msgr_running_fast_dispatch_time
+msgr_send_messages_queue_lat
+msgr_handle_ack_lat
+}
+{
+bluefs
+gift_bytes
+reclaim_bytes
+db_total_bytes
+db_used_bytes
+wal_total_bytes
+wal_used_bytes
+slow_total_bytes
+slow_used_bytes
+num_files
+log_bytes
+log_compactions
+logged_bytes
+files_written_wal
+files_written_sst
+bytes_written_wal
+bytes_written_sst
+bytes_written_slow
+max_bytes_wal
+max_bytes_db
+max_bytes_slow
+read_random_count
+read_random_bytes
+read_random_disk_count
+read_random_disk_bytes
+read_random_buffer_count
+read_random_buffer_bytes
+read_count
+read_bytes
+read_prefetch_count
+read_prefetch_bytes
+}

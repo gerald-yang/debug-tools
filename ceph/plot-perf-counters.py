@@ -138,7 +138,7 @@ def plot_counters(cname):
     x = pd.to_datetime(x_timeline, format='%Y-%m-%d.%H:%M:%S')
     line_color_iter = 0
     for c in y_dict:
-        p.line(x, y_dict[c], color=line_color[line_color_iter], legend_label=c, line_width=2)
+        p.line(x, y_dict[c], color=next(colors), legend_label=c, line_width=2)
         line_color_iter = line_color_iter + 1
 
     # show the results
