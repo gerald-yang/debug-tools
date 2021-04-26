@@ -22,6 +22,7 @@ Example:
 it will generate some html files according to config.all and put them into folder proc-html
 counter list file is like below, the first row in a curly brackets is the counter category, and followed by counter names in this category
 please refer to config.all, config.all contains all memory states currently supported
+lines in chart are disabled by default, please click counter name on top right to enable it
 you can comment out counters you don't want to plot like MemTotal, MemFree and MemAvailable
 
 {
