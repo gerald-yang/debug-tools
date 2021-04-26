@@ -1,0 +1,42 @@
+Dependencies:
+
+Before running this tool, please intall python3-pip
+sudo apt install -y python3-pip
+
+and use pip3 to install the following packages
+pip3 install pandas bokeh
+
+
+Usage:
+
+./plot-memory-states.py -f [proc memory file] -c [counter list file] -d [output folder]
+
+-f : file containing /proc/meminfo and /proc/vmstat per minute
+-c : counter list including counter category and a list of counters will be plotted to a chart
+-d : output folder
+
+
+Example:
+./plot-memory-states.py -f proc-files.txt -c config.all -d proc-html
+
+it will generate some html files according to config.all and put them into folder proc-html
+counter list file is like below, the first row in a curly brackets is the counter category, and followed by counter names in this category
+please refer to config.all, config.all contains all memory states currently supported
+you can comment out counters you don't want to plot like MemTotal, MemFree and MemAvailable
+
+{
+meminfo
+#MemTotal
+#MemFree
+#MemAvailable
+Buffers
+Cached
+SwapCached
+Active
+Inactive
+Active(anon)
+Inactive(anon)
+Active(file)
+Inactive(file)
+...
+}
