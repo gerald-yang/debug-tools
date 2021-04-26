@@ -94,9 +94,10 @@ def plot_counters(cfname, counter_list):
 
     x = pd.to_datetime(x_timeline, format='%Y-%m-%d.%H:%M:%S')
     for c in y_dict:
-        p.line(x, y_dict[c], color=next(colors), line_width=2, legend = c)
+        l = p.line(x, y_dict[c], color=next(colors), line_width=2, legend = c)
+        l.visible = False
 
-    p.legend.location = "top_left"
+    p.legend.location = "top_right"
     p.legend.click_policy = "hide"
     # show the results
     show(p)
