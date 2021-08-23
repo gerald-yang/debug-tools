@@ -3,7 +3,7 @@
 usage() {
 	echo ""
 	echo "Usage:"
-	echo "create-lxc.sh UBUNT_SERIES CONTAINER_NAME STORAGE_SIZE [NEED_CONFIG]"
+	echo "create-lxc.sh UBUNT_SERIES CONTAINER_NAME STORAGE_SIZE DOWNLOAD_IMAGE [NEED_CONFIG]"
 	echo "create-lxc.sh -c CONTAINER_NAME"
 	echo ""
 	echo "NEED_CONFIG: yes or no(default)"
@@ -83,8 +83,8 @@ if [ -z "$3" ]; then
 	exit 1
 fi
 
-if [ -z "$3" ]; then
-	echo "Wrong parameter 3"
+if [ -z "$4" ]; then
+	echo "Wrong parameter 4"
 	usage
 	exit 1
 fi
@@ -92,7 +92,13 @@ fi
 UBUNTU_SERIES="$1"
 CONTAINER_NAME="$2"
 STORAGE_SIZE="$3"
-NEED_CONFIG="$4"
+DOWNLOAD_IMAGE="$4"
+
+if [ -z "$5" ]; then
+        NEED_CONFIG="no"
+else
+        NEED_CONFIG="$5"
+fi
 
 echo "creating storage $CONTAINER_NAME-disk"
 lxc storage create "$CONTAINER_NAME"-disk btrfs size="$STORAGE_SIZE"GB
@@ -103,7 +109,11 @@ fi
 echo "done"
 
 echo "launching container $CONTAINER_NAME"
-lxc launch "$UBUNTU_SERIES"-image "$CONTAINER_NAME" --storage="$CONTAINER_NAME"-disk
+if [ "$DOWNLOAD_IMAGE" = "yes" ]; then
+        lxc launch ubuntu:"$UBUNTU_SERIES" "$CONTAINER_NAME" --storage="$CONTAINER_NAME"-disk
+else
+        lxc launch "$UBUNTU_SERIES"-image "$CONTAINER_NAME" --storage="$CONTAINER_NAME"-disk
+fi
 if [ "$?" != "0" ]; then
 	echo "launch $CONTAINER_NAME failed"
 	exit 1
