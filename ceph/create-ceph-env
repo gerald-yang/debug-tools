@@ -1,0 +1,5 @@
+cfolder=$(pwd)
+echo "export PYTHONPATH=\$PYTHONPATH:$cfolder/src/pybind/:/data/ceph/src/pybind/" > virtual_ceph_env
+echo "export PATH=\$PATH:$cfolder/bin/" >> virtual_ceph_env
+echo "export LD_LIBRARY_PATH=$cfolder/lib/" >> virtual_ceph_env
+
