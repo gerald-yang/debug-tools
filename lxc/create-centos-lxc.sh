@@ -69,7 +69,7 @@ config_container() {
 	scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/.ssh/id_rsa.pub root@"$ADDR":~/.ssh/
 	scp -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/.gnupg root@"$ADDR":~/
 	scp -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/.gitconfig root@"$ADDR":~/
-	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@"$ADDR" git clone https://github.com/gerald-yang/ceph-tools
+	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@"$ADDR" git clone https://github.com/gerald-yang/debug-tools
 }
 
 if [ "$1" = "-c" ]; then
