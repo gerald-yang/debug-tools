@@ -1,0 +1,98 @@
+# Description:
+#   This bundle deploys the minimum required services
+#   to test a Ceph cluster.
+#
+# Format: Juju 2.x
+
+# Variables
+debug:                      &debug                     False
+series:                     &series                    bionic
+source:                     &source                    bionic 
+openstack-origin:           &openstack-origin          bionic
+
+ceph-loglevel:              &ceph-loglevel             
+
+# Add more devices if your machines have them available
+osd-devices:               &osd-devices                >-
+                                                       /dev/sdb
+osd-db-wal:                 &osd-db-wal                
+osd-journal:                &osd-journal               
+
+# Deployment
+series: *series
+applications:
+  mysql:
+    charm: cs:percona-cluster
+    num_units: 1
+    options:
+      source: *source
+      dataset-size: 1G
+      max-connections: 20000
+      tuning-level: fast
+      root-password: u123
+      sst-password: u123
+    constraints: tags=virtual
+    to:
+    - lxd:ceph-radosgw/0
+    bindings:
+      '': oam
+  keystone:
+    charm: cs:keystone
+    num_units: 1
+    options:
+      debug: *debug
+      verbose: *debug
+      openstack-origin: *openstack-origin
+      admin-password: openstack
+      token-expiration: 8640000
+    constraints: tags=virtual
+    to:
+    - lxd:ceph-radosgw/0
+    bindings:
+      '': oam
+  ceph-mon:
+    charm: cs:ceph-mon
+    num_units: 1
+    options:
+      source: *source
+      loglevel: *ceph-loglevel
+      monitor-count: 1
+      expected-osd-count: 1
+    bindings:
+      '': oam
+    to:
+    - lxd:ceph-radosgw/0
+    constraints: tags=virtual
+  ceph-osd:
+    charm: cs:ceph-osd
+    num_units: 3
+    options:
+      source: *source
+      loglevel: *ceph-loglevel
+      osd-devices: *osd-devices
+      bluestore-db: *osd-db-wal
+      bluestore-wal: *osd-db-wal
+      osd-journal: *osd-journal
+      bluestore-block-db-size: 30000000000
+      bluestore-block-wal-size: 2147483648
+      #      config-flags: "{\"global\": {\"osd memory target\": \"1G\"}}"
+      bluestore: true
+    bindings:
+      '': oam
+    constraints: tags=gerald-test
+  ceph-radosgw:
+    charm: cs:ceph-radosgw
+    num_units: 1
+    constraints:
+    options:
+      loglevel: *ceph-loglevel
+      source: *source
+      rgw-buckets-pool-weight: 5
+    bindings:
+      '': oam
+relations:
+  - [ keystone, mysql ]
+  - [ ceph-mon, ceph-osd ]
+  - [ ceph-mon, ceph-radosgw ]
+  - [ keystone, ceph-radosgw ]
+
