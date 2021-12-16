@@ -3,7 +3,7 @@
 usage() {
 	echo ""
 	echo "Usage:"
-	echo "create-lxc.sh UBUNT_SERIES CONTAINER_NAME STORAGE_SIZE DOWNLOAD_IMAGE [NEED_CONFIG]"
+	echo "create-lxc.sh UBUNT_SERIES CONTAINER_NAME STORAGE_SIZE DOWNLOAD_IMAGE [NEED_CONFIG] [NEED_CREATE_STORAGE]"
 	echo "create-lxc.sh -c CONTAINER_NAME"
 	echo ""
 	echo "NEED_CONFIG: yes or no(default)"
@@ -43,6 +43,11 @@ config_container() {
 	ADDR=$(lxc list --format=json | jq -r .["$INSTANCE_ID"].state.network.eth0.addresses[0].address)
 	echo "address: $ADDR"
 
+        echo "setup ssh agent"
+        eval $(ssh-agent -s)
+        agent_pid=$(ps aux | grep gerald | grep ssh-agent | grep -v grep | awk '{print $2}')
+        ssh-add
+
 	echo "copy configs"
 	scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/.ssh/id_rsa ubuntu@"$ADDR":~/.ssh/
 	scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/.ssh/id_rsa.pub ubuntu@"$ADDR":~/.ssh/
@@ -51,8 +56,8 @@ config_container() {
 	scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/bin/lsftp ubuntu@"$ADDR":~/
 	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" git clone https://github.com/gerald-yang/vim
 	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" git clone https://github.com/gerald-yang/debug-tools
-	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" git clone https://github.com/brendangregg/flamegraph
-	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" sudo apt install linux-tools-common
+	#ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" git clone https://github.com/brendangregg/flamegraph
+	#ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" sudo apt install linux-tools-common
 }
 
 if [ "$1" = "-c" ]; then
@@ -99,13 +104,21 @@ else
         NEED_CONFIG="$5"
 fi
 
-echo "creating storage $CONTAINER_NAME-disk"
-lxc storage create "$CONTAINER_NAME"-disk btrfs size="$STORAGE_SIZE"GB
-if [ "$?" != "0" ]; then
-	echo "create storage failed"
-	exit 1
+if [ -z "$6" ]; then
+        CREATE_STORAGE="no"
+else
+        CREATE_STORAGE="$6"
 fi
-echo "done"
+
+if [ "$CREATE_STORAGE" = "yes" ]; then
+        echo "creating storage $CONTAINER_NAME-disk"
+        lxc storage create "$CONTAINER_NAME"-disk btrfs size="$STORAGE_SIZE"GB
+        if [ "$?" != "0" ]; then
+	        echo "create storage failed"
+	        exit 1
+        fi
+        echo "done"
+fi
 
 echo "launching container $CONTAINER_NAME"
 if [ "$DOWNLOAD_IMAGE" = "yes" ]; then
