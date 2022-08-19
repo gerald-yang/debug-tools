@@ -16,8 +16,7 @@ struct my_data {
         struct kmem_cache *s;
 };
 
-/* Here we use the entry_hanlder to timestamp function entry */
-static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int entry_alloc(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
         struct my_data *data;
 
@@ -31,7 +30,7 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
  * out to be zero consistently, depending upon the granularity of time
  * accounting on the platform.
  */
-static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int ret_alloc(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	void *ret = (void *)regs_return_value(regs);
         struct my_data *data = (struct my_data *)ri->data;
@@ -42,8 +41,9 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 }
 
 static struct kretprobe my_kretprobe = {
-	.handler		= ret_handler,
-	.entry_handler		= entry_handler,
+	.handler		= ret_alloc,
+	.entry_handler		= entry_alloc,
+        .data_size              = sizeof(struct my_data),
 };
 
 static int __init kretprobe_init(void)
