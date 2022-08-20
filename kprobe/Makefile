@@ -1,6 +1,6 @@
 KERNELDIR=/lib/modules/`uname -r`/build
 
-obj-m := kprobe.o kretprobe.o
+obj-m := debug.o
 
 default:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
