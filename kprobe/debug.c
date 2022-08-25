@@ -43,7 +43,7 @@ static int ret_alloc(struct kretprobe_instance *ri, struct pt_regs *regs)
         struct kmem_cache *s = data->s;
 
         if (!strcmp(s->name, slab_name)) {
-                dump_stack();
+                //dump_stack();
 	        pr_info("Gerald: %s alloc address %llx", s->name, (unsigned long long)ret);
         }
 	return 0;
@@ -61,7 +61,7 @@ static int pre_free(struct kprobe *p, struct pt_regs *regs)
         struct kmem_cache *s = (struct kmem_cache *)regs->di;
         void *addr = (void *)regs->si;
         if (!strcmp(s->name, slab_name)) {
-                dump_stack();
+                //dump_stack();
                 pr_info("Gerald: %s free address %llx", s->name, (unsigned long long)addr);
         }
 	/* A dump_stack() here will give a stack backtrace */
