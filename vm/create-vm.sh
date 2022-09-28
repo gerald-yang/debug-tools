@@ -2,8 +2,10 @@
 
 function print_usage {
         echo "Usage:"
+        echo "./create-vm.sh {vm name} {ubuntu series} {vm vcpu} {vm ram in MB} {vm image size}"
         echo ""
-        echo "./create-vm.sh {vm name} {ubuntu series} {vm vcpu} {vm memory} {vm image size}"
+        echo "example:"
+        echo "./create-vm.sh testvm xenial 4 16384 30G"
         echo ""
 }
 
