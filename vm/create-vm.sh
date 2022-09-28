@@ -27,7 +27,7 @@ function download_image {
                 echo "image already downloaded"
         else
                 echo "downloading image"
-                wget https://cloud-images.ubuntu.com/"$1"/current/"$1"
+                wget https://cloud-images.ubuntu.com/"$1"/current/"$2"
         fi
 }
 
