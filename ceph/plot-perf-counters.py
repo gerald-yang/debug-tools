@@ -70,10 +70,7 @@ except OSError:
 else:
     print("Successfully created the directory %s " % args.outputd)
 
-#tmp = 0
-
 def get_counters_in_category(f):
-    #global tmp
     while True:
         line = f.readline()
         name = line.split(':')[0].strip().strip('"')
@@ -91,9 +88,7 @@ def get_counters_in_category(f):
         else:
             value = float(line.split(':')[1].strip().strip(','))
 
-        #if tmp == 1:
-        #    print(name)
-        if line[0] != '#' and name in counter_list:
+        if name in counter_list:
             if name not in y_dict:
                 y = []
                 y_dict[name] = y
@@ -105,7 +100,6 @@ def get_counters_in_category(f):
 
 
 def plot_counters(cname):
-    #global tmp
     output_file(args.outputd + '/' + cname.replace(':', '-') + '.html')
 
     with open(args.file, "r") as f:
@@ -120,14 +114,8 @@ def plot_counters(cname):
                 while True:
                     line = f.readline()
                     if line.find('"'+cname+'"') != -1:
-                        #if tmp == 1:
-                        #    print('{')
-                        #    print(cname)
                         get_counters_in_category(f)
-                        #if tmp == 1:
-                        #    print('}')
                     elif line.find('====================================================') != -1:
-                        #tmp = 0
                         break
                     else:
                         continue
@@ -138,9 +126,12 @@ def plot_counters(cname):
     x = pd.to_datetime(x_timeline, format='%Y-%m-%d.%H:%M:%S')
     line_color_iter = 0
     for c in y_dict:
-        p.line(x, y_dict[c], color=next(colors), legend_label=c, line_width=2)
+        l = p.line(x, y_dict[c], color=next(colors), legend_label=c, line_width=2)
+        l.visible = False
         line_color_iter = line_color_iter + 1
 
+    p.legend.location = "top_right"
+    p.legend.click_policy = "hide"
     # show the results
     show(p)
 
@@ -156,9 +147,9 @@ with open(args.config, "r") as cf:
                 line = cf.readline()
                 if line.find('}') != -1:
                     break
-                counter_list.append(line.rstrip("\n"))
+                if line[0] != '#':
+                    counter_list.append(line.rstrip("\n"))
             
-            #tmp = 1
             print('plotting ' + cname + ' counters')
             plot_counters(cname)
         
