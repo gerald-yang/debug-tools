@@ -12,3 +12,13 @@ lxc storage volume create bcache cache size=10GiB --type block
 lxc config device add jammy-kvm backing1 disk pool=bcache source=backing1
 lxc config device add jammy-kvm backing2 disk pool=bcache source=backing2
 lxc config device add jammy-kvm cache disk pool=bcache source=cache
+
+# Remove disk from VM
+# lxc config device remove jammy-kvm backing1
+# lxc config device remove jammy-kvm backing2
+# lxc config device remove jammy-kvm cache
+#
+# Remove volume
+# lxc storage volume delete bcache backing1
+# lxc storage volume delete bcache backing2
+# lxc storage volume delete bcache cache
