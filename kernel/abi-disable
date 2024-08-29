@@ -1,0 +1,56 @@
+#!/bin/bash
+#
+#  creates new abi directory for second debian.<>/changelog
+#  entry and populates it with ignore and ignore.modules files
+#
+
+[[ -z $DEBDIR ]] && DEBDIR="debian.master"
+
+debversion=`tail -n +2 ${DEBDIR}/changelog | sed -n '/^[^ ]/{s/^.*(\(.*\)).*$/\1/p;q}'`
+echo "${DEBDIR}/changelog previous version is:  $debversion"
+
+abidir="${DEBDIR}/abi"
+
+abiname="${debversion#*-}"
+abiname="${abiname%%.*}"
+echo "abiname is:  $abiname"
+
+set -e
+
+echo "creating new dir: $abidir"
+mkdir "$abidir" || {
+    if [ "$1" != "-f" ]
+    then
+	echo "E: use -f to just use that directory" 1>&2
+	exit 1
+    fi
+}
+cd "$abidir"
+echo "$abiname" > abiname
+echo "    (ignoring abi and modules)"
+for arch in amd64 arm64 armel armhf i386 powerpc ppc64el s390x
+do
+    [ -d $arch ] || mkdir $arch
+    echo 1 > "$arch/ignore"
+    echo 1 > "$arch/ignore.modules"
+    echo 1 > "$arch/ignore.retpoline"
+done
+
+echo "OPTIONAL:"
+echo "  git add $abidir"
+
+exit 0
+
+# old abi-disable script ...
+
+for i in `ls -d debian.master/abi/2*/*`
+do
+    if [ -d "$i" ] ; then
+	echo "creating $i/ignore"
+	echo "1" >"$i/ignore"
+	echo "creating $i/ignore.modules"
+	echo "1" >"$i/ignore.modules"
+	echo "creating $i/ignore.retpoline"
+	echo "1" >"$i/ignore.retpoline"
+    fi
+done

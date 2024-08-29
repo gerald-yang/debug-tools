@@ -9,11 +9,13 @@ if [ -z "$1" ] || [ "$1" = "-h" ]; then
 	exit 0 
 fi
 
-lxc init ubuntu:"$1" "$2" --vm
+lxc storage create "$2"-disk dir
+
+lxc init ubuntu:"$1" "$2" --storage="$2"-disk --vm
 lxc config set "$2" limits.cpu "$3"
 lxc config set "$2" limits.memory "$4"GiB
 lxc config set "$2" security.secureboot false
-lxc config device override "$2" root size="$5"GiB
+lxc config device set "$2" root size="$5"GiB
 lxc start "$2"
 
 echo "waiting for user to be created"
