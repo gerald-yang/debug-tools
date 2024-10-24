@@ -3,14 +3,14 @@
 usage() {
 	echo ""
 	echo "Usage:"
-	echo "create-lxc.sh UBUNT_SERIES CONTAINER_NAME STORAGE_SIZE DOWNLOAD_IMAGE [NEED_CONFIG] [NEED_CREATE_STORAGE]"
-	echo "create-lxc.sh -c CONTAINER_NAME"
+	echo "create-lxc.sh {ubuntu series} {container name} {storage size} {create storage} {from daily}"
 	echo ""
-	echo "NEED_CONFIG: yes or no(default)"
-	echo "             setup ssh/gpg key and copy/clone tools"
+	echo "Configure container only"
+	echo "create-lxc.sh -c {container name}"
+	echo ""
         echo ""
         echo "Example:"
-        echo "./create-lxc.sh noble noble 30 yes yes yes"
+        echo "./create-lxc.sh noble noble-c 30 yes no"
 	echo ""
 }
 
@@ -59,63 +59,40 @@ config_container() {
 	scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/bin/lsftp ubuntu@"$ADDR":~/
 	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" git clone https://github.com/gerald-yang/vim
 	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" git clone https://github.com/gerald-yang/lvim
-	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" git clone https://github.com/gerald-yang/debug-tools
+	#ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" git clone https://github.com/gerald-yang/debug-tools
 	#ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@"$ADDR" git clone https://github.com/brendangregg/flamegraph
+
+	echo "" >> ~/.ssh/config
+	echo "Host $1" >> ~/.ssh/config
+	echo "  ForwardAgent yes" >> ~/.ssh/config
+	echo "  HostName $ADDR" >> ~/.ssh/config
+	echo "  User ubuntu" >> ~/.ssh/config
 }
 
-if [ "$1" = "-c" ]; then
-        if [ -z "$2" ]; then
+SERIES="$1"
+NAME="$2"
+DISK="$3"
+CREATE_DISK="$4"
+FROM_DAILY="$5"
+
+if [ "$SERIES" = "-c" ]; then
+        if [ -z "$NAME" ]; then
                 echo "enter container name to be configured"
                 exit -1
         fi
-        config_container "$2"
+        config_container "$NAME"
         exit 0
 fi
 
-if [ -z "$1" ]; then
-	echo "Wrong parameter 1"
-	usage
-	exit 1
-fi
-
-if [ -z "$2" ]; then
-	echo "Wrong parameter 2"
-	usage
-	exit 1
-fi
-
-if [ -z "$3" ]; then
-	echo "Wrong parameter 3"
-	usage
-	exit 1
-fi
-
-if [ -z "$4" ]; then
-	echo "Wrong parameter 4"
-	usage
-	exit 1
-fi
-
-UBUNTU_SERIES="$1"
-CONTAINER_NAME="$2"
-STORAGE_SIZE="$3"
-DOWNLOAD_IMAGE="$4"
-
 if [ -z "$5" ]; then
-        NEED_CONFIG="no"
-else
-        NEED_CONFIG="$5"
+	echo "Wrong parameters"
+	usage
+	exit 1
 fi
 
-if [ -z "$6" ]; then
-        CREATE_STORAGE="no"
-else
-        CREATE_STORAGE="$6"
-fi
-
-if [ "$CREATE_STORAGE" = "yes" ]; then
-        echo "creating storage $CONTAINER_NAME-disk"
-        lxc storage create "$CONTAINER_NAME"-disk btrfs size="$STORAGE_SIZE"GB
+if [ "$CREATE_DISK" = "yes" ]; then
+        echo "creating storage $NAME-disk"
+        lxc storage create "$NAME"-disk zfs size="$DISK"GB
         if [ "$?" != "0" ]; then
 	        echo "create storage failed"
 	        exit 1
@@ -123,18 +100,25 @@ if [ "$CREATE_STORAGE" = "yes" ]; then
         echo "done"
 fi
 
-echo "launching container $CONTAINER_NAME"
-if [ "$DOWNLOAD_IMAGE" = "yes" ]; then
-        lxc launch ubuntu:"$UBUNTU_SERIES" "$CONTAINER_NAME" --storage="$CONTAINER_NAME"-disk
+echo "launching container $NAME"
+if [ "$CREATE_DISK" = "yes" ]; then
+	if [ "$FROM_DAILY" == "yes" ]; then
+        	lxc launch ubuntu-daily:"$SERIES" "$NAME" --storage="$NAME"-disk
+	else
+        	lxc launch ubuntu:"$SERIES" "$NAME" --storage="$NAME"-disk
+	fi
 else
-        lxc launch "$UBUNTU_SERIES"-image "$CONTAINER_NAME" --storage="$CONTAINER_NAME"-disk
+	if [ "$FROM_DAILY" == "yes" ]; then
+        	lxc launch ubuntu-daily:"$SERIES" "$NAME"
+	else
+        	lxc launch ubuntu:"$SERIES" "$NAME"
+	fi
 fi
+
 if [ "$?" != "0" ]; then
-	echo "launch $CONTAINER_NAME failed"
+	echo "launch $NAME failed"
 	exit 1
 fi
 echo "done"
 
-if [ "$NEED_CONFIG" = "yes" ]; then
-	config_container "$CONTAINER_NAME"
-fi
+config_container "$NAME"

@@ -3,7 +3,7 @@
 usage() {
 	echo ""
 	echo "Usage:"
-	echo "delete-lxc.sh CONTAINER_NAME"
+	echo "delete-lxc.sh {container name}"
 	echo ""
 }
 
