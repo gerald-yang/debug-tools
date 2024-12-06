@@ -49,7 +49,7 @@ function create_cloud_init {
 }
 
 function launch_vm {
-        virt-install -n "$1" --description "test vm" --os-type generic --vcpu "$2" --ram "$3" --disk "$1".img,device=disk,bus=virtio,cache=directsync --disk cloud-init-"$1".iso,device=cdrom --virt-type kvm --graphics none --network network=default,model=virtio --import --noautoconsole
+        virt-install -n "$1" --description "test vm" --osinfo ubuntu"$2" --vcpu "$3" --ram "$4" --disk "$1".img,device=disk,bus=virtio,cache=directsync --disk cloud-init-"$1".iso,device=cdrom --virt-type kvm --graphics none --network network=default,model=virtio --import --noautoconsole
         #virsh list
 }
 
@@ -113,6 +113,6 @@ check_dep
 download_image "$vm_series" "$ubuntu_image"
 create_vm_image "$vm_name" "$ubuntu_image" "$vm_size"
 create_cloud_init "$vm_name"
-launch_vm "$vm_name" "$vm_cpus" "$vm_mem"
+launch_vm "$vm_name" "$vm_series" "$vm_cpus" "$vm_mem"
 setup_ssh_config "$vm_name"
 
