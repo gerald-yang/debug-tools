@@ -13,14 +13,21 @@ function check_dep {
         pkglist=("virt-manager" "qemu-system-x86" "cloud-image-utils")
 
         echo "checking dependencies"
+        first="false"
         for pkg in ${pkglist[@]}; do
                 pkg_install=$(dpkg -l | grep "$pkg")
                 if [ -z "$pkg_install" ]; then
+                        first="true"
                         echo "$pkg not installed"
                         sudo apt install -y $pkg
-                        echo "you may need to reboot the machine before creating VM"
                 fi
         done
+        if [ "$first" = "true" ]; then
+                curr_user=$(whoami)
+                sudo usermod -a -G "$curr_user" libvirt-qemu
+                echo "you may need to reboot the machine before creating VM"
+                exit -1
+        fi
         echo "all dependencies are installed"
 }
 
@@ -49,7 +56,12 @@ function create_cloud_init {
 }
 
 function launch_vm {
-        virt-install -n "$1" --description "test vm" --osinfo ubuntu"$2" --vcpu "$3" --ram "$4" --disk "$1".img,device=disk,bus=virtio,cache=directsync --disk cloud-init-"$1".iso,device=cdrom --virt-type kvm --graphics none --network network=default,model=virtio --import --noautoconsole
+        codename=$(lsb_release -c -s)
+        if [ "$codename" = "focal" ]; then
+                virt-install -n "$1" --description "test vm" --os-type generic --vcpu "$3" --ram "$4" --disk "$1".img,device=disk,bus=virtio,cache=directsync --disk cloud-init-"$1".iso,device=cdrom --virt-type kvm --graphics none --network network=default,model=virtio --import --noautoconsole
+        else
+                virt-install -n "$1" --description "test vm" --osinfo ubuntu"$2" --vcpu "$3" --ram "$4" --disk "$1".img,device=disk,bus=virtio,cache=directsync --disk cloud-init-"$1".iso,device=cdrom --virt-type kvm --graphics none --network network=default,model=virtio --import --noautoconsole
+        fi
         #virsh list
 }
 
