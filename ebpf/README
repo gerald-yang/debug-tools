@@ -1,0 +1,3 @@
+On the machine you want to run epbf:
+Install linux-tools to get bpftool and then generate vmlinux.h by:
+bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h
