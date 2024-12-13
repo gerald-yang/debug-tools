@@ -33,7 +33,7 @@ func main() {
 	defer logFile.Close()
 	exitLog := log.New(logFile, "", 0)
 
-	exitReason := map[uint32]string{0: "EXCEPTION_NMI", 1: "EXTERNAL_INTERRUPT", 2: "TRIPLE_FAULT", 3: "INIT_SIGNAL",
+	exitReason := map[uint32]string{0: "EXCEPTION_NMI", 1: "EXTERNAL_INTERRUPT", 2: "TRIPLE_FAULT", 3: "INIT_SIGNAL", 4: "SIPI_SIGNAL",
 		7: "PENDING_INTERRUPT", 8: "NMI_WINDOW", 9: "TASK_SWITCH", 10: "CPUID",
 		12: "HLT", 13: "INVD", 14: "INVLPG", 15: "RDPMC", 16: "RDTSC", 18: "VMCALL",
 		19: "VMCLEAR", 20: "VMLAUNCH", 21: "VMPTRLD", 22: "VMPTRST", 23: "VMREAD",
@@ -45,7 +45,8 @@ func main() {
 		47: "LDTR_TR", 48: "EPT_VIOLATION", 49: "EPT_MISCONFIG", 50: "INVEPT",
 		51: "RDTSCP", 52: "PREEMPTION_TIMER", 53: "INVVPID", 54: "WBINVD", 55: "XSETBV",
 		56: "APIC_WRITE", 57: "RDRAND", 58: "INVPCID", 59: "VMFUNC", 60: "ENCLS",
-		61: "RDSEED", 62: "PML_FULL", 63: "XSAVES", 64: "XRSTORS", 67: "UMWAIT", 68: "TPAUSE"}
+		61: "RDSEED", 62: "PML_FULL", 63: "XSAVES", 64: "XRSTORS", 67: "UMWAIT", 68: "TPAUSE",
+		74: "BUS_LOCK", 75: "NOTIFY"}
 
 	log.Println("Start probing vm_exit and write statistics to vm-exit.log")
 	log.Println("[ctrl+c to stop]")
