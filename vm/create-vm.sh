@@ -95,6 +95,7 @@ function setup_ssh_config {
                 echo "  HostName $ipaddr" >> ~/.ssh/config
                 echo "  User ubuntu" >> ~/.ssh/config
         fi
+        chmod 600 ~/.ssh/config
 }
 
 
