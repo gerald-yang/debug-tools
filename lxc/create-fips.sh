@@ -43,7 +43,8 @@ eval $(ssh-agent -s)
 agent_pid=$(ps aux | grep gerald | grep ssh-agent | grep -v grep | awk '{print $2}')
 ssh-add
 
-echo "Host fips" > ~/.ssh/config
+echo "" >> ~/.ssh/config
+echo "Host fips" >> ~/.ssh/config
 echo "  ForwardAgent yes" >> ~/.ssh/config
 echo "  HostName $ADDR" >> ~/.ssh/config
 echo "  User ubuntu" >> ~/.ssh/config

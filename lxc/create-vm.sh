@@ -54,7 +54,7 @@ IDPUB=$(cat ~/.ssh/id_rsa.pub)
 lxc exec "$VM_NAME" -- /bin/bash -c "echo $IDPUB > /home/ubuntu/.ssh/authorized_keys"
 echo "done"
         
-echo "searching container address"
+echo "searching vm address"
 INSTANCE_ID=0
 for((i=0; i<100; i++)); do
         NAME=$(lxc list --format=json | jq -r .[$i].name)
