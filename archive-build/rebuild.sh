@@ -20,11 +20,17 @@ build_package() {
     cd "$build_dir"
     
     # Download source package
+    local download_fail="false"
     echo "Downloading source package..."
     apt-get source "$source_pkg=$version" || {
         echo "Error: Failed to download source package" >&2
-        exit 1
+        download_fail="true"
     }
+
+    if [ "$download_fail" = "true" ]; then
+        echo "Download failed $source_pkg=$version" >> fail.list
+        return 0
+    fi
 
     dsc_file=$(find . -maxdepth 1 -type f -name "*.dsc")
     
