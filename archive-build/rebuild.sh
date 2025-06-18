@@ -23,13 +23,14 @@ build_package() {
     local download_fail="false"
     echo "Downloading source package..."
     apt-get source "$source_pkg=$version" || {
-        echo "Error: Failed to download source package" >&2
         download_fail="true"
     }
 
     if [ "$download_fail" = "true" ]; then
+        cd - > /dev/null
         echo "Download failed $source_pkg=$version" >> fail.list
-        return 0
+	echo "Download failed $source_pkg=$version"
+	return 0
     fi
 
     dsc_file=$(find . -maxdepth 1 -type f -name "*.dsc")
@@ -52,8 +53,6 @@ build_package() {
     
     echo "----------------------------------------"
 }
-
-# Get the list of source packages from /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_noble_main_source_Sources
 
 if [ -z "$1" ] || [ -z "$2" ]; then
     echo "Usage: $0 <package list file> <ubuntu series>"
