@@ -19,7 +19,6 @@ if [ "$3" = "yes" ]; then
     sudo apt install -y sbuild schroot debootstrap debhelper devscripts equivs
     echo "Setup sbuild user"
     sudo usermod -aG sbuild "$USER"
-    newgrp sbuild
 fi
 
 echo "Setup $arch sbuild root for $2"
@@ -38,8 +37,8 @@ if [ "$3" = "yes" ]; then
 fi
 
 if [ "$2" = "focal" ]; then
-    sudo schroot -c focal -- echo "deb http://ports.ubuntu.com/ubuntu-ports focal restricted universe multiverse" >> /etc/apt/sources.list
-    sudo schroot -c focal -- echo "deb-src http://ports.ubuntu.com/ubuntu-ports focal restricted universe multiverse" >> /etc/apt/sources.list
+    sudo schroot -c focal -- bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports focal restricted universe multiverse' >> /etc/apt/sources.list"
+    sudo schroot -c focal -- bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports focal restricted universe multiverse' >> /etc/apt/sources.list"
     sudo schroot -c focal -- apt update
     sudo schroot -c focal -- apt install -y gcc-9 g++-9 gcc-10 g++-10
     sudo schroot -c focal -- update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 9
@@ -52,8 +51,8 @@ if [ "$2" = "focal" ]; then
     sudo bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports focal universe multiverse restricted main' >> /etc/apt/sources.list"
 fi
 if [ "$2" = "jammy" ]; then
-    sudo schroot -c jammy -- echo "deb http://ports.ubuntu.com/ubuntu-ports jammy restricted universe multiverse" >> /etc/apt/sources.list
-    sudo schroot -c jammy -- echo "deb-src http://ports.ubuntu.com/ubuntu-ports jammy restricted universe multiverse" >> /etc/apt/sources.list
+    sudo schroot -c jammy -- bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports jammy restricted universe multiverse' >> /etc/apt/sources.list"
+    sudo schroot -c jammy -- bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports jammy restricted universe multiverse' >> /etc/apt/sources.list"
     sudo schroot -c jammy -- apt update
     sudo schroot -c jammy -- apt install -y gcc-10 g++-10 gcc-11 g++-11 gcc-12 g++-12
     sudo schroot -c jammy -- update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
@@ -69,4 +68,4 @@ if [ "$2" = "jammy" ]; then
 fi
 sudo apt update
 
-echo "Sbuild setup complete, to modify the build env, run: sudo schroot -c <series>"
+echo "Sbuild setup complete, please logout and login to start building"
