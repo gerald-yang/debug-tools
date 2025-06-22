@@ -5,9 +5,9 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-if [ "$1" == "amd64" ]; then
+if [ "$1" = "amd64" ]; then
     arch="amd64"
-elif [ "$1" == "arm64" ]; then
+elif [ "$1" = "arm64" ]; then
     arch="arm64"
 else
     echo "Invalid architecture: $1"
@@ -37,8 +37,15 @@ if [ "$3" = "yes" ]; then
 fi
 
 if [ "$2" = "focal" ]; then
-    sudo schroot -c focal -- bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports focal restricted universe multiverse' >> /etc/apt/sources.list"
-    sudo schroot -c focal -- bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports focal restricted universe multiverse' >> /etc/apt/sources.list"
+    if [ "$arch" = "amd64" ]; then
+        sudo schroot -c focal -- bash -c "echo 'deb http://archive.ubuntu.com/ubuntu focal restricted universe multiverse' >> /etc/apt/sources.list"
+        sudo schroot -c focal -- bash -c "echo 'deb-src http://archive.ubuntu.com/ubuntu focal restricted universe multiverse' >> /etc/apt/sources.list"
+    elif [ "$arch" = "arm64" ]; then
+        sudo schroot -c focal -- bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports focal restricted universe multiverse' >> /etc/apt/sources.list"
+        sudo schroot -c focal -- bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports focal restricted universe multiverse' >> /etc/apt/sources.list"
+    else
+        echo "Invalid architecture: $arch"
+    fi
     sudo schroot -c focal -- apt update
     sudo schroot -c focal -- apt install -y gcc-9 g++-9 gcc-10 g++-10
     sudo schroot -c focal -- update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 9
@@ -47,12 +54,25 @@ if [ "$2" = "focal" ]; then
     sudo schroot -c focal -- update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10
     sudo schroot -c focal -- update-alternatives --config gcc
     sudo schroot -c focal -- update-alternatives --config g++
-    sudo bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports focal universe multiverse restricted main' >> /etc/apt/sources.list"
-    sudo bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports focal universe multiverse restricted main' >> /etc/apt/sources.list"
+    if [ "$arch" = "amd64" ]; then
+        sudo cp amd64-focal.list /etc/apt/sources.list.d/
+    elif [ "$arch" = "arm64" ]; then
+        sudo bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports focal universe multiverse restricted main' >> /etc/apt/sources.list"
+        sudo bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports focal universe multiverse restricted main' >> /etc/apt/sources.list"
+    else
+        echo "Invalid architecture: $arch"
+    fi
 fi
 if [ "$2" = "jammy" ]; then
-    sudo schroot -c jammy -- bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports jammy restricted universe multiverse' >> /etc/apt/sources.list"
-    sudo schroot -c jammy -- bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports jammy restricted universe multiverse' >> /etc/apt/sources.list"
+    if [ "$arch" = "amd64" ]; then
+        sudo schroot -c jammy -- bash -c "echo 'deb http://archive.ubuntu.com/ubuntu jammy restricted universe multiverse' >> /etc/apt/sources.list"
+        sudo schroot -c jammy -- bash -c "echo 'deb-src http://archive.ubuntu.com/ubuntu jammy restricted universe multiverse' >> /etc/apt/sources.list"
+    elif [ "$arch" = "arm64" ]; then
+        sudo schroot -c jammy -- bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports jammy restricted universe multiverse' >> /etc/apt/sources.list"
+        sudo schroot -c jammy -- bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports jammy restricted universe multiverse' >> /etc/apt/sources.list"
+    else
+        echo "Invalid architecture: $arch"
+    fi
     sudo schroot -c jammy -- apt update
     sudo schroot -c jammy -- apt install -y gcc-10 g++-10 gcc-11 g++-11 gcc-12 g++-12
     sudo schroot -c jammy -- update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
@@ -63,8 +83,14 @@ if [ "$2" = "jammy" ]; then
     sudo schroot -c jammy -- update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 12
     sudo schroot -c jammy -- update-alternatives --config gcc
     sudo schroot -c jammy -- update-alternatives --config g++
-    sudo bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports jammy universe multiverse restricted main' >> /etc/apt/sources.list"
-    sudo bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports jammy universe multiverse restricted main' >> /etc/apt/sources.list"
+    if [ "$arch" = "amd64" ]; then
+        sudo cp amd64-jammy.list /etc/apt/sources.list.d/
+    elif [ "$arch" = "arm64" ]; then
+        sudo bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports jammy universe multiverse restricted main' >> /etc/apt/sources.list"
+        sudo bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports jammy universe multiverse restricted main' >> /etc/apt/sources.list"
+    else
+        echo "Invalid architecture: $arch"
+    fi
 fi
 sudo apt update
 
