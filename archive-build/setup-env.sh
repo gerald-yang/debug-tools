@@ -55,7 +55,7 @@ if [ "$2" = "focal" ]; then
     sudo schroot -c focal -- update-alternatives --config gcc
     sudo schroot -c focal -- update-alternatives --config g++
     if [ "$arch" = "amd64" ]; then
-        sudo cp amd64-focal.list /etc/apt/sources.list.d/
+        sudo cp amd64-focal.sources /etc/apt/sources.list.d/
     elif [ "$arch" = "arm64" ]; then
         sudo bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports focal universe multiverse restricted main' >> /etc/apt/sources.list"
         sudo bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports focal universe multiverse restricted main' >> /etc/apt/sources.list"
@@ -84,7 +84,7 @@ if [ "$2" = "jammy" ]; then
     sudo schroot -c jammy -- update-alternatives --config gcc
     sudo schroot -c jammy -- update-alternatives --config g++
     if [ "$arch" = "amd64" ]; then
-        sudo cp amd64-jammy.list /etc/apt/sources.list.d/
+        sudo cp amd64-jammy.sources /etc/apt/sources.list.d/
     elif [ "$arch" = "arm64" ]; then
         sudo bash -c "echo 'deb http://ports.ubuntu.com/ubuntu-ports jammy universe multiverse restricted main' >> /etc/apt/sources.list"
         sudo bash -c "echo 'deb-src http://ports.ubuntu.com/ubuntu-ports jammy universe multiverse restricted main' >> /etc/apt/sources.list"
