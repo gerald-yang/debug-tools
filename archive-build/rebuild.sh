@@ -50,6 +50,7 @@ build_package() {
     else
         echo "Successfully built $source_pkg=$version"
     fi
+    date
     
     echo "----------------------------------------"
 }
