@@ -11,7 +11,7 @@ build_package() {
     echo "Processing source package: $source_pkg (version: $version)"
     
     # Create build directory in current folder
-    build_dir="builds/${source_pkg}_${version}"
+    build_dir="check-builds/${source_pkg}_${version}"
     if [ -d "$build_dir" ]; then
         echo "Build directory already exists: $build_dir"
         return 0
@@ -27,8 +27,8 @@ build_package() {
     }
 
     if [ "$download_fail" = "true" ]; then
-        cd - > /dev/null
-        echo "Download failed $source_pkg=$version" >> fail.list
+    	cd - > /dev/null
+        echo "Download failed $source_pkg=$version" >> check-fail.list
 	echo "Download failed $source_pkg=$version"
 	return 0
     fi
@@ -45,35 +45,28 @@ build_package() {
     cd - > /dev/null
     
     if [ "$build_fail" = "true" ]; then
-        echo "Build failed $source_pkg=$version" >> fail.list
+        echo "Build failed $source_pkg=$version" >> check-fail.list
         echo "Build failed $source_pkg=$version"
     else
         echo "Successfully built $source_pkg=$version"
-        rm -rf "$build_dir"
     fi
-    date
     
     echo "----------------------------------------"
 }
 
 if [ -z "$1" ] || [ -z "$2" ]; then
-    echo "Usage: $0 <package list file> <ubuntu series>"
+    echo "Usage: $0 <check list file> <ubuntu series>"
     exit 1
 fi
 
 # Create builds directory if it doesn't exist
-mkdir -p builds
+mkdir -p check-builds
 
 # Read the package list and process each package
 while IFS= read -r line; do
-    if [[ $line =~ ^Package:[[:space:]]*(.+)$ ]]; then
-        package="${BASH_REMATCH[1]}"
-        # Read the next line for version
-        read -r version_line
-        if [[ $version_line =~ ^Version:[[:space:]]*(.+)$ ]]; then
-            version="${BASH_REMATCH[1]}"
-            build_package "$package" "$version" "$2"
-        fi
-    fi
+    package="${line%%=*}"
+    version="${line#*=}"
+    build_package "$package" "$version" "$2"
 done < "$1"
+
 
