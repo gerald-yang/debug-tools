@@ -107,6 +107,28 @@ function add_del_table() {
     done
 }
 
+function check_iperf_process() {
+    while true; do
+        IPERF1=$(ps aux | grep iperf | grep "$IP2")
+        if [ -z "$IPERF1" ]; then
+            ip netns exec ns0 iperf -t 0 -c $IP2 -P 24 &
+        fi
+        IPERF2=$(ps aux | grep iperf | grep "$IP4")
+        if [ -z "$IPERF2" ]; then
+            ip netns exec ns2 iperf -t 0 -c $IP4 -P 24 &
+        fi
+        IPERF3=$(ps aux | grep iperf | grep "$IP6")
+        if [ -z "$IPERF3" ]; then
+            ip netns exec ns4 iperf -t 0 -c $IP6 -P 24 &
+        fi
+        IPERF4=$(ps aux | grep iperf | grep "$IP8")
+        if [ -z "$IPERF4" ]; then
+            ip netns exec ns6 iperf -t 0 -c $IP8 -P 24 &
+        fi
+        sleep 10
+    done
+}
+
 function run() {
     title "Test OVS CT TCP"
     config_vf ns0 $VF1 $REP1 $IP1
@@ -159,19 +181,19 @@ function run() {
     echo "start stress test"
     ip netns exec ns1 iperf -s &
     sleep 1 
-    ip netns exec ns0 iperf -t 0 -c $IP2 -P 16 &
+    ip netns exec ns0 iperf -t 0 -c $IP2 -P 24 &
 
     ip netns exec ns3 iperf -s &
     sleep 1
-    ip netns exec ns2 iperf -t 0 -c $IP4 -P 16 &
+    ip netns exec ns2 iperf -t 0 -c $IP4 -P 24 &
 
     ip netns exec ns5 iperf -s &
     sleep 1
-    ip netns exec ns4 iperf -t 0 -c $IP6 -P 16 &
+    ip netns exec ns4 iperf -t 0 -c $IP6 -P 24 &
 
     ip netns exec ns7 iperf -s &
     sleep 1
-    ip netns exec ns6 iperf -t 0 -c $IP8 -P 16 &
+    ip netns exec ns6 iperf -t 0 -c $IP8 -P 24 &
 
     sleep 1
     ovs_dump_tc_flows --names
@@ -181,6 +203,4 @@ function run() {
 cleanup
 run
 add_del_table &
-
-# wait here until user press any key to stop
-read -n 1
+check_iperf_process
