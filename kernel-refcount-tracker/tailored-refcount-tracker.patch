@@ -1,0 +1,760 @@
+From 97444a4663611c445ba0eb59077412c359bb5ad0 Mon Sep 17 00:00:00 2001
+From: Ubuntu <ubuntu@ps6-test.lxd>
+Date: Fri, 10 May 2024 05:52:03 +0000
+Subject: [PATCH 2/2] add refcount tracker for debugging
+
+---
+ .../abi/6.5.0-28.29~22.04.1/abiname           |  1 +
+ .../abi/6.5.0-28.29~22.04.1/amd64/ignore      |  1 +
+ .../6.5.0-28.29~22.04.1/amd64/ignore.modules  |  1 +
+ .../amd64/ignore.retpoline                    |  1 +
+ .../abi/6.5.0-28.29~22.04.1/arm64/ignore      |  1 +
+ .../6.5.0-28.29~22.04.1/arm64/ignore.modules  |  1 +
+ .../arm64/ignore.retpoline                    |  1 +
+ .../abi/6.5.0-28.29~22.04.1/armel/ignore      |  1 +
+ .../6.5.0-28.29~22.04.1/armel/ignore.modules  |  1 +
+ .../armel/ignore.retpoline                    |  1 +
+ .../abi/6.5.0-28.29~22.04.1/armhf/ignore      |  1 +
+ .../6.5.0-28.29~22.04.1/armhf/ignore.modules  |  1 +
+ .../armhf/ignore.retpoline                    |  1 +
+ .../abi/6.5.0-28.29~22.04.1/i386/ignore       |  1 +
+ .../6.5.0-28.29~22.04.1/i386/ignore.modules   |  1 +
+ .../6.5.0-28.29~22.04.1/i386/ignore.retpoline |  1 +
+ .../abi/6.5.0-28.29~22.04.1/powerpc/ignore    |  1 +
+ .../powerpc/ignore.modules                    |  1 +
+ .../powerpc/ignore.retpoline                  |  1 +
+ .../abi/6.5.0-28.29~22.04.1/ppc64el/ignore    |  1 +
+ .../ppc64el/ignore.modules                    |  1 +
+ .../ppc64el/ignore.retpoline                  |  1 +
+ .../abi/6.5.0-28.29~22.04.1/s390x/ignore      |  1 +
+ .../6.5.0-28.29~22.04.1/s390x/ignore.modules  |  1 +
+ .../s390x/ignore.retpoline                    |  1 +
+ debian.hwe-6.5/changelog                      |  6 +-
+ include/linux/netfilter/nf_conntrack_common.h | 32 ++++++-
+ include/linux/ref_tracker.h                   | 13 ++-
+ include/net/netfilter/nf_conntrack.h          | 15 +++-
+ lib/ref_tracker.c                             | 86 ++++++++++++-------
+ net/netfilter/nf_conntrack_core.c             | 34 ++++++++
+ net/netfilter/nf_conntrack_expect.c           |  8 +-
+ net/netfilter/nf_conntrack_netlink.c          |  9 +-
+ net/netfilter/nf_conntrack_standalone.c       |  3 +
+ net/netfilter/nf_flow_table_core.c            | 13 +++
+ net/netfilter/nft_ct.c                        |  4 +
+ net/netfilter/xt_CT.c                         |  4 +
+ 37 files changed, 211 insertions(+), 41 deletions(-)
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/abiname
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore.modules
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore.retpoline
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore.modules
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore.retpoline
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore.modules
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore.retpoline
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore.modules
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore.retpoline
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore.modules
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore.retpoline
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore.modules
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore.retpoline
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore.modules
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore.retpoline
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore.modules
+ create mode 100644 debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore.retpoline
+
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/abiname b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/abiname
+new file mode 100644
+index 000000000000..9902f17848a8
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/abiname
+@@ -0,0 +1 @@
++28
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore.modules b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore.modules
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore.modules
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore.retpoline b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore.retpoline
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/amd64/ignore.retpoline
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore.modules b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore.modules
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore.modules
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore.retpoline b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore.retpoline
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/arm64/ignore.retpoline
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore.modules b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore.modules
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore.modules
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore.retpoline b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore.retpoline
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armel/ignore.retpoline
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore.modules b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore.modules
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore.modules
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore.retpoline b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore.retpoline
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/armhf/ignore.retpoline
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore.modules b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore.modules
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore.modules
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore.retpoline b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore.retpoline
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/i386/ignore.retpoline
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore.modules b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore.modules
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore.modules
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore.retpoline b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore.retpoline
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/powerpc/ignore.retpoline
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore.modules b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore.modules
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore.modules
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore.retpoline b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore.retpoline
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/ppc64el/ignore.retpoline
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore.modules b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore.modules
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore.modules
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore.retpoline b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore.retpoline
+new file mode 100644
+index 000000000000..d00491fd7e5b
+--- /dev/null
++++ b/debian.hwe-6.5/abi/6.5.0-28.29~22.04.1/s390x/ignore.retpoline
+@@ -0,0 +1 @@
++1
+diff --git a/debian.hwe-6.5/changelog b/debian.hwe-6.5/changelog
+index 3f7c23266fc7..26a07d62ba29 100644
+--- a/debian.hwe-6.5/changelog
++++ b/debian.hwe-6.5/changelog
+@@ -1,8 +1,8 @@
+-linux-hwe-6.5 (6.5.0-28.29~22.04.1+test20240429b0) jammy; urgency=medium
++linux-hwe-6.5 (6.5.0-28.29~22.04.1+test20240510b1) jammy; urgency=medium
+ 
+-  * for refcount testing
++  * add refcount tracker for debugging
+ 
+- -- Gerald Yang <gerald.yang@canonical.com>  Mon, 29 Apr 2024 09:56:32 +0000
++ -- Gerald Yang <gerald.yang@canonical.com>  Fri, 10 May 2024 00:56:32 +0000
+ 
+ linux-hwe-6.5 (6.5.0-28.29~22.04.1) jammy; urgency=medium
+ 
+diff --git a/include/linux/netfilter/nf_conntrack_common.h b/include/linux/netfilter/nf_conntrack_common.h
+index 2770db2fa080..ecd6cb8e2b5e 100644
+--- a/include/linux/netfilter/nf_conntrack_common.h
++++ b/include/linux/netfilter/nf_conntrack_common.h
+@@ -3,6 +3,7 @@
+ #define _NF_CONNTRACK_COMMON_H
+ 
+ #include <linux/refcount.h>
++#include <linux/ref_tracker.h>
+ #include <uapi/linux/netfilter/nf_conntrack_common.h>
+ 
+ struct ip_conntrack_stat {
+@@ -28,18 +29,43 @@ struct nf_conntrack {
+ 	refcount_t use;
+ };
+ 
++struct nf_conn_debug {
++	struct nf_conntrack ct_general;
++
++        /* gerald debug */
++        struct ref_tracker_dir ref_dir;
++        struct ref_tracker *ct_general_tracker;
++};
++
+ void nf_conntrack_destroy(struct nf_conntrack *nfct);
+ 
+ /* like nf_ct_put, but without module dependency on nf_conntrack */
+ static inline void nf_conntrack_put(struct nf_conntrack *nfct)
+ {
+-	if (nfct && refcount_dec_and_test(&nfct->use))
+-		nf_conntrack_destroy(nfct);
++        struct nf_conn_debug *ct;
++
++        if (nfct) {
++                /* gerald debug */
++                ct = (struct nf_conn_debug *)nfct;
++                ref_tracker_free(&ct->ref_dir, &ct->ct_general_tracker);
++
++                if (refcount_dec_and_test(&nfct->use)) {
++                        ref_tracker_dir_exit(&ct->ref_dir);
++		        nf_conntrack_destroy(nfct);
++                }
++        }
+ }
+ static inline void nf_conntrack_get(struct nf_conntrack *nfct)
+ {
+-	if (nfct)
++        struct nf_conn_debug *ct;
++
++	if (nfct) {
+ 		refcount_inc(&nfct->use);
++
++                /* gerald debug */
++                ct = (struct nf_conn_debug *)nfct;
++                ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++        }
+ }
+ 
+ #endif /* _NF_CONNTRACK_COMMON_H */
+diff --git a/include/linux/ref_tracker.h b/include/linux/ref_tracker.h
+index 8eac4f3d5254..c65953449f2c 100644
+--- a/include/linux/ref_tracker.h
++++ b/include/linux/ref_tracker.h
+@@ -31,7 +31,7 @@ static inline void ref_tracker_dir_init(struct ref_tracker_dir *dir,
+ 	INIT_LIST_HEAD(&dir->quarantine);
+ 	spin_lock_init(&dir->lock);
+ 	dir->quarantine_avail = quarantine_count;
+-	dir->dead = false;
++	dir->dead = true;
+ 	refcount_set(&dir->untracked, 1);
+ 	refcount_set(&dir->no_tracker, 1);
+ 	strscpy(dir->name, name, sizeof(dir->name));
+@@ -54,6 +54,10 @@ int ref_tracker_alloc(struct ref_tracker_dir *dir,
+ int ref_tracker_free(struct ref_tracker_dir *dir,
+ 		     struct ref_tracker **trackerp);
+ 
++/* gerald debug */
++int ref_tracker_set(struct ref_tracker_dir *dir,
++		      struct ref_tracker **trackerp,
++		      gfp_t gfp, int v);
+ #else /* CONFIG_REF_TRACKER */
+ 
+ static inline void ref_tracker_dir_init(struct ref_tracker_dir *dir,
+@@ -95,6 +99,13 @@ static inline int ref_tracker_free(struct ref_tracker_dir *dir,
+ 	return 0;
+ }
+ 
++/* gerald debug */
++static inline int ref_tracker_set(struct ref_tracker_dir *dir,
++		      struct ref_tracker **trackerp,
++		      gfp_t gfp, int v)
++{
++        return 0;
++}
+ #endif
+ 
+ #endif /* _LINUX_REF_TRACKER_H */
+diff --git a/include/net/netfilter/nf_conntrack.h b/include/net/netfilter/nf_conntrack.h
+index a72028dbef0c..330d471bbf71 100644
+--- a/include/net/netfilter/nf_conntrack.h
++++ b/include/net/netfilter/nf_conntrack.h
+@@ -85,6 +85,10 @@ struct nf_conn {
+ 	 */
+ 	struct nf_conntrack ct_general;
+ 
++        /* gerald debug */
++        struct ref_tracker_dir ref_dir;
++        struct ref_tracker *ct_general_tracker;
++
+ 	spinlock_t	lock;
+ 	/* jiffies32 when this ct is considered dead */
+ 	u32 timeout;
+@@ -186,8 +190,15 @@ void nf_conntrack_tcp_set_closing(struct nf_conn *ct);
+ /* decrement reference count on a conntrack */
+ static inline void nf_ct_put(struct nf_conn *ct)
+ {
+-	if (ct && refcount_dec_and_test(&ct->ct_general.use))
+-		nf_ct_destroy(&ct->ct_general);
++	if (ct) {
++                /* gerald debug */
++                ref_tracker_free(&ct->ref_dir, &ct->ct_general_tracker);
++
++                if (refcount_dec_and_test(&ct->ct_general.use)) {
++                        ref_tracker_dir_exit(&ct->ref_dir);
++                        nf_ct_destroy(&ct->ct_general);
++                }
++        }
+ }
+ 
+ /* Protocol module loading */
+diff --git a/lib/ref_tracker.c b/lib/ref_tracker.c
+index cf5609b1ca79..7edb9bddf068 100644
+--- a/lib/ref_tracker.c
++++ b/lib/ref_tracker.c
+@@ -192,15 +192,9 @@ int ref_tracker_alloc(struct ref_tracker_dir *dir,
+ 	gfp_t gfp_mask = gfp | __GFP_NOWARN;
+ 	unsigned long flags;
+ 
+-	WARN_ON_ONCE(dir->dead);
+-
+-	if (!trackerp) {
+-		refcount_inc(&dir->no_tracker);
+-		return 0;
+-	}
+ 	if (gfp & __GFP_DIRECT_RECLAIM)
+ 		gfp_mask |= __GFP_NOFAIL;
+-	*trackerp = tracker = kzalloc(sizeof(*tracker), gfp_mask);
++	tracker = kzalloc(sizeof(*tracker), gfp_mask);
+ 	if (unlikely(!tracker)) {
+ 		pr_err_once("memory allocation failure, unreliable refcount tracker.\n");
+ 		refcount_inc(&dir->untracked);
+@@ -211,6 +205,7 @@ int ref_tracker_alloc(struct ref_tracker_dir *dir,
+ 
+ 	spin_lock_irqsave(&dir->lock, flags);
+ 	list_add(&tracker->head, &dir->list);
++        dir->dead = false;
+ 	spin_unlock_irqrestore(&dir->lock, flags);
+ 	return 0;
+ }
+@@ -221,45 +216,53 @@ int ref_tracker_free(struct ref_tracker_dir *dir,
+ {
+ 	unsigned long entries[REF_TRACKER_STACK_ENTRIES];
+ 	depot_stack_handle_t stack_handle;
+-	struct ref_tracker *tracker;
++	struct ref_tracker *tracker, *n;
+ 	unsigned int nr_entries;
+ 	unsigned long flags;
+ 
+-	WARN_ON_ONCE(dir->dead);
+-
+-	if (!trackerp) {
+-		refcount_dec(&dir->no_tracker);
+-		return 0;
+-	}
+-	tracker = *trackerp;
+-	if (!tracker) {
+-		refcount_dec(&dir->untracked);
+-		return -EEXIST;
+-	}
+ 	nr_entries = stack_trace_save(entries, ARRAY_SIZE(entries), 1);
+ 	stack_handle = stack_depot_save(entries, nr_entries,
+ 					GFP_NOWAIT | __GFP_NOWARN);
+ 
+ 	spin_lock_irqsave(&dir->lock, flags);
+-	if (tracker->dead) {
++	if (dir->dead || list_empty(&dir->list)) {
+ 		pr_err("reference already released.\n");
+-		if (tracker->alloc_stack_handle) {
+-			pr_err("allocated in:\n");
+-			stack_depot_print(tracker->alloc_stack_handle);
+-		}
+-		if (tracker->free_stack_handle) {
+-			pr_err("freed in:\n");
+-			stack_depot_print(tracker->free_stack_handle);
+-		}
++		pr_err("reverse order in quarantine list\n");
++	        list_for_each_entry_safe_reverse(tracker, n, &dir->quarantine, head) {
++		        if (tracker->alloc_stack_handle) {
++			        pr_err("allocated in:\n");
++			        stack_depot_print(tracker->alloc_stack_handle);
++		        }
++		        if (tracker->free_stack_handle) {
++			        pr_err("freed in:\n");
++			        stack_depot_print(tracker->free_stack_handle);
++		        }
++                }
++                if (!list_empty(&dir->list)) {
++		        pr_err("in alloc list\n");
++	                list_for_each_entry_safe(tracker, n, &dir->list, head) {
++		                if (tracker->alloc_stack_handle) {
++			                pr_err("allocated in:\n");
++			                stack_depot_print(tracker->alloc_stack_handle);
++		                }
++		                if (tracker->free_stack_handle) {
++			                pr_err("freed in:\n");
++			                stack_depot_print(tracker->free_stack_handle);
++		                }
++                        }
++                }
+ 		spin_unlock_irqrestore(&dir->lock, flags);
+ 		WARN_ON_ONCE(1);
+ 		return -EINVAL;
+ 	}
+-	tracker->dead = true;
+ 
++	tracker = list_first_entry(&dir->list, struct ref_tracker, head);
+ 	tracker->free_stack_handle = stack_handle;
+ 
+ 	list_move_tail(&tracker->head, &dir->quarantine);
++	if (list_empty(&dir->list))
++	        dir->dead = true;
++
+ 	if (!dir->quarantine_avail) {
+ 		tracker = list_first_entry(&dir->quarantine, struct ref_tracker, head);
+ 		list_del(&tracker->head);
+@@ -273,3 +276,28 @@ int ref_tracker_free(struct ref_tracker_dir *dir,
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(ref_tracker_free);
++
++/* gerald debug */
++int ref_tracker_set(struct ref_tracker_dir *dir,
++		      struct ref_tracker **trackerp,
++		      gfp_t gfp, int v)
++{
++	struct ref_tracker *tracker, *n;
++	unsigned long flags;
++        int i;
++
++	spin_lock_irqsave(&dir->lock, flags);
++	if (!list_empty(&dir->list)) {
++		list_for_each_entry_safe(tracker, n, &dir->list, head) {
++			list_del(&tracker->head);
++			kfree(tracker);
++		}
++	}
++	spin_unlock_irqrestore(&dir->lock, flags);
++
++	for (i = 0; i < v; ++i)
++                ref_tracker_alloc(dir, trackerp, gfp);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(ref_tracker_set);
+diff --git a/net/netfilter/nf_conntrack_core.c b/net/netfilter/nf_conntrack_core.c
+index 992393102d5f..37504fbb47d4 100644
+--- a/net/netfilter/nf_conntrack_core.c
++++ b/net/netfilter/nf_conntrack_core.c
+@@ -546,6 +546,10 @@ struct nf_conn *nf_ct_tmpl_alloc(struct net *net,
+ 	nf_ct_zone_add(tmpl, zone);
+ 	refcount_set(&tmpl->ct_general.use, 1);
+ 
++        /* gerald debug */
++	ref_tracker_dir_init(&tmpl->ref_dir, 300, "ps6-debug-tmpl");
++	ref_tracker_alloc(&tmpl->ref_dir, &tmpl->ct_general_tracker, GFP_KERNEL);
++
+ 	return tmpl;
+ }
+ EXPORT_SYMBOL_GPL(nf_ct_tmpl_alloc);
+@@ -717,6 +721,9 @@ static void nf_ct_gc_expired(struct nf_conn *ct)
+ 	if (!refcount_inc_not_zero(&ct->ct_general.use))
+ 		return;
+ 
++        /* gerald debug */
++	ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++
+ 	/* load ->status after refcount increase */
+ 	smp_acquire__after_ctrl_dep();
+ 
+@@ -784,6 +791,9 @@ __nf_conntrack_find_get(struct net *net, const struct nf_conntrack_zone *zone,
+ 		 */
+ 		ct = nf_ct_tuplehash_to_ctrack(h);
+ 		if (likely(refcount_inc_not_zero(&ct->ct_general.use))) {
++                        /* gerald debug */
++	                ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++
+ 			/* re-check key after refcount */
+ 			smp_acquire__after_ctrl_dep();
+ 
+@@ -929,6 +939,10 @@ nf_conntrack_hash_check_insert(struct nf_conn *ct)
+ 	smp_wmb();
+ 	/* The caller holds a reference to this object */
+ 	refcount_set(&ct->ct_general.use, 2);
++
++        /* gerald debug */
++	ref_tracker_set(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL, 2);
++
+ 	__nf_conntrack_hash_insert(ct, hash, reply_hash);
+ 	nf_conntrack_double_unlock(hash, reply_hash);
+ 	NF_CT_STAT_INC(net, insert);
+@@ -982,6 +996,9 @@ static void __nf_conntrack_insert_prepare(struct nf_conn *ct)
+ 
+ 	refcount_inc(&ct->ct_general.use);
+ 
++        /* gerald debug */
++        ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++
+ 	/* set conntrack timestamp, if enabled. */
+ 	tstamp = nf_conn_tstamp_find(ct);
+ 	if (tstamp)
+@@ -1382,6 +1399,9 @@ static unsigned int early_drop_list(struct net *net,
+ 		if (!refcount_inc_not_zero(&tmp->ct_general.use))
+ 			continue;
+ 
++                /* gerald debug */
++                ref_tracker_alloc(&tmp->ref_dir, &tmp->ct_general_tracker, GFP_KERNEL);
++
+ 		/* load ->ct_net and ->status after refcount increase */
+ 		smp_acquire__after_ctrl_dep();
+ 
+@@ -1542,6 +1562,9 @@ static void gc_worker(struct work_struct *work)
+ 			if (!refcount_inc_not_zero(&tmp->ct_general.use))
+ 				continue;
+ 
++                        /* gerald debug */
++                        ref_tracker_alloc(&tmp->ref_dir, &tmp->ct_general_tracker, GFP_KERNEL);
++
+ 			/* load ->status after refcount increase */
+ 			smp_acquire__after_ctrl_dep();
+ 
+@@ -1651,6 +1674,10 @@ __nf_conntrack_alloc(struct net *net,
+ 	 * this is inserted in any list.
+ 	 */
+ 	refcount_set(&ct->ct_general.use, 0);
++
++        /* gerald debug */
++	ref_tracker_dir_init(&ct->ref_dir, 300, "ps6-debug");
++
+ 	return ct;
+ out:
+ 	atomic_dec(&cnet->count);
+@@ -1794,6 +1821,9 @@ init_conntrack(struct net *net, struct nf_conn *tmpl,
+ 	/* Now it is going to be associated with an sk_buff, set refcount to 1. */
+ 	refcount_set(&ct->ct_general.use, 1);
+ 
++        /* gerald debug */
++	ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++
+ 	if (exp) {
+ 		if (exp->expectfn)
+ 			exp->expectfn(ct, exp);
+@@ -2399,6 +2429,10 @@ get_next_corpse(int (*iter)(struct nf_conn *i, void *data),
+ 	return NULL;
+ found:
+ 	refcount_inc(&ct->ct_general.use);
++
++        /* gerald debug */
++        ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++
+ 	spin_unlock(lockp);
+ 	local_bh_enable();
+ 	return ct;
+diff --git a/net/netfilter/nf_conntrack_expect.c b/net/netfilter/nf_conntrack_expect.c
+index 96948e98ec53..88941fa6daf4 100644
+--- a/net/netfilter/nf_conntrack_expect.c
++++ b/net/netfilter/nf_conntrack_expect.c
+@@ -207,9 +207,13 @@ nf_ct_find_expectation(struct net *net,
+ 	 * know that the ct is being destroyed.  If it succeeds, we
+ 	 * can be sure the ct cannot disappear underneath.
+ 	 */
+-	if (unlikely(nf_ct_is_dying(exp->master) ||
+-		     !refcount_inc_not_zero(&exp->master->ct_general.use)))
++	if (unlikely(nf_ct_is_dying(exp->master)))
+ 		return NULL;
++	if (unlikely(!refcount_inc_not_zero(&exp->master->ct_general.use)))
++		return NULL;
++
++        /* gerald debug */
++	ref_tracker_alloc(&exp->master->ref_dir, &exp->master->ct_general_tracker, GFP_KERNEL);
+ 
+ 	if (exp->flags & NF_CT_EXPECT_PERMANENT) {
+ 		refcount_inc(&exp->use);
+diff --git a/net/netfilter/nf_conntrack_netlink.c b/net/netfilter/nf_conntrack_netlink.c
+index ebee85cf9269..49a9ef0b01cd 100644
+--- a/net/netfilter/nf_conntrack_netlink.c
++++ b/net/netfilter/nf_conntrack_netlink.c
+@@ -1221,8 +1221,12 @@ ctnetlink_dump_table(struct sk_buff *skb, struct netlink_callback *cb)
+ 			if (nf_ct_is_expired(ct)) {
+ 				/* need to defer nf_ct_kill() until lock is released */
+ 				if (i < ARRAY_SIZE(nf_ct_evict) &&
+-				    refcount_inc_not_zero(&ct->ct_general.use))
++				    refcount_inc_not_zero(&ct->ct_general.use)) {
+ 					nf_ct_evict[i++] = ct;
++
++                                        /* gerald debug */
++	                                ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++                                }
+ 				continue;
+ 			}
+ 
+@@ -1759,6 +1763,9 @@ static int ctnetlink_dump_one_entry(struct sk_buff *skb,
+ 		if (!refcount_inc_not_zero(&ct->ct_general.use))
+ 			return 0;
+ 
++                /* gerald debug */
++	        ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++
+ 		ctx->last = ct;
+ 	}
+ 
+diff --git a/net/netfilter/nf_conntrack_standalone.c b/net/netfilter/nf_conntrack_standalone.c
+index 5e4dc94db078..e8c3ee9439a4 100644
+--- a/net/netfilter/nf_conntrack_standalone.c
++++ b/net/netfilter/nf_conntrack_standalone.c
+@@ -305,6 +305,9 @@ static int ct_seq_show(struct seq_file *s, void *v)
+ 	if (unlikely(!refcount_inc_not_zero(&ct->ct_general.use)))
+ 		return 0;
+ 
++        /* gerald debug */
++         ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++
+ 	/* load ->status after refcount increase */
+ 	smp_acquire__after_ctrl_dep();
+ 
+diff --git a/net/netfilter/nf_flow_table_core.c b/net/netfilter/nf_flow_table_core.c
+index 920a5a29ae1d..802820436610 100644
+--- a/net/netfilter/nf_flow_table_core.c
++++ b/net/netfilter/nf_flow_table_core.c
+@@ -52,6 +52,7 @@ flow_offload_fill_dir(struct flow_offload *flow,
+ struct flow_offload *flow_offload_alloc(struct nf_conn *ct)
+ {
+ 	struct flow_offload *flow;
++        unsigned int debug;
+ 
+ 	if (unlikely(nf_ct_is_dying(ct)))
+ 		return NULL;
+@@ -60,7 +61,19 @@ struct flow_offload *flow_offload_alloc(struct nf_conn *ct)
+ 	if (!flow)
+ 		return NULL;
+ 
++        /* gerald debug, someone should hold a refcount here */
++        debug = refcount_read(&ct->ct_general.use);
++        if (debug == 0) {
++                /* triger use-after-free case */
++                printk(KERN_ERR "SEG: trigger use-after-free to print call stacks");
++                ref_tracker_free(&ct->ref_dir, &ct->ct_general_tracker);
++        }
++
+ 	refcount_inc(&ct->ct_general.use);
++
++        /* gerald debug */
++	ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++
+ 	flow->ct = ct;
+ 
+ 	flow_offload_fill_dir(flow, FLOW_OFFLOAD_DIR_ORIGINAL);
+diff --git a/net/netfilter/nft_ct.c b/net/netfilter/nft_ct.c
+index 38958e067aa8..b71f561b74db 100644
+--- a/net/netfilter/nft_ct.c
++++ b/net/netfilter/nft_ct.c
+@@ -252,6 +252,10 @@ static void nft_ct_set_zone_eval(const struct nft_expr *expr,
+ 
+ 	if (likely(refcount_read(&ct->ct_general.use) == 1)) {
+ 		refcount_inc(&ct->ct_general.use);
++
++                /* gerald debug */
++	        ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++
+ 		nf_ct_zone_add(ct, &zone);
+ 	} else {
+ 		/* previous skb got queued to userspace, allocate temporary
+diff --git a/net/netfilter/xt_CT.c b/net/netfilter/xt_CT.c
+index 2be2f7a7b60f..0433a0622c47 100644
+--- a/net/netfilter/xt_CT.c
++++ b/net/netfilter/xt_CT.c
+@@ -25,6 +25,10 @@ static inline int xt_ct_target(struct sk_buff *skb, struct nf_conn *ct)
+ 
+ 	if (ct) {
+ 		refcount_inc(&ct->ct_general.use);
++
++                /* gerald debug */
++	        ref_tracker_alloc(&ct->ref_dir, &ct->ct_general_tracker, GFP_KERNEL);
++
+ 		nf_ct_set(skb, ct, IP_CT_NEW);
+ 	} else {
+ 		nf_ct_set(skb, ct, IP_CT_UNTRACKED);
+-- 
+2.34.1
+
