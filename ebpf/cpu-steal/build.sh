@@ -14,10 +14,10 @@ else
 fi
 
 if dpkg -s clang-"$CLANG_VER" >/dev/null 2>&1; then
-        echo "clang-15 is installed"
+        echo "clang-$CLANG_VER is installed"
 else
-        echo "clang-15 is not installed, install now"
-        sudo apt install -y clang-15
+        echo "clang-$CLANG_VER is not installed, install now"
+        sudo apt install -y clang-"$CLANG_VER"
 fi
 
 if dpkg -s linux-tools-"$curr_kernel" >/dev/null 2>&1; then
