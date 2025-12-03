@@ -6,8 +6,8 @@ if ! [ $(id -u) -eq 0 ]; then
 fi
 
 if ! dpkg -s fio >/dev/null 2>&1; then
-	        echo "install fio"
-		        apt install fio -y
+	echo "install fio"
+	apt install fio -y
 fi
 
 DISK="testdisk"
@@ -16,8 +16,8 @@ FOLDER="mnt"
 mkdir -p "$FOLDER"
 
 if mountpoint -q "$FOLDER"; then
-	        echo "umount $FOLDER"
-		        umount "$FOLDER"
+        echo "umount $FOLDER"
+        umount "$FOLDER"
 fi
 
 rm -f "$DISK"
@@ -35,4 +35,4 @@ rm -f "$DISK"
 
 echo ""
 echo "check dmesg"
-dmesg | tail -n 20
+dmesg | tail -n 40
