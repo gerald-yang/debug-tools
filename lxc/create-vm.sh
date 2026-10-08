@@ -1,13 +1,30 @@
 #!/bin/bash
+#
+# Create an Ubuntu LXD virtual machine, install our ssh key and add an
+# ~/.ssh/config entry for it.
+set -euo pipefail
 
-if [ -z "$1" ] || [ "$1" = "-h" ]; then
-        echo "Usage:"
-        echo "  ./create-vm.sh {ubuntu series} {vm name} {cpu} {memory} {disk} {create storage} {from daily}"
-        echo ""
-        echo "Example:"
-        echo "  ./create-vm.sh noble noble-vm 4 8 60 yes no"
-	exit 0 
-fi
+. "$(dirname "$(readlink -f "$0")")/lib/common.sh"
+
+GUEST_USER=ubuntu
+
+usage() {
+	cat <<-EOU
+	Usage:
+	  ${0##*/} <series> <name> <cpus> <memory GB> <disk GB> <create storage: yes|no> <from daily: yes|no>
+	  ${0##*/} -h    show this help
+
+	Example:
+	  ${0##*/} noble noble-vm 4 8 60 yes no
+
+	List available images with:  lxc image list ubuntu:   /   lxc image list ubuntu-daily:
+	EOU
+}
+
+need_cmd lxc jq
+
+case "${1:-}" in -h|--help|"") usage; exit 0 ;; esac
+[ "$#" -eq 7 ] || { echo "error: expected 7 arguments, got $#" >&2; usage; exit 1; }
 
 SERIES="$1"
 VM_NAME="$2"
@@ -17,65 +34,40 @@ DISK="$5"
 CREATE_DISK="$6"
 DAILY_BUILD="$7"
 
+for n in "$CPUS" "$MEM" "$DISK"; do
+	[[ "$n" =~ ^[0-9]+$ ]] || die "cpus, memory and disk must be numbers, got '$n'"
+done
+[ "$CREATE_DISK" = "yes" ] || [ "$CREATE_DISK" = "no" ] || die "create storage must be yes or no"
+[ "$DAILY_BUILD" = "yes" ] || [ "$DAILY_BUILD" = "no" ] || die "from daily must be yes or no"
+if instance_exists "$VM_NAME"; then die "instance $VM_NAME already exists"; fi
+
+init_args=()
 if [ "$CREATE_DISK" = "yes" ]; then
-        lxc storage create "$VM_NAME"-disk dir
+	log "creating storage pool $VM_NAME-disk (dir)"
+	lxc storage create "$VM_NAME-disk" dir || die "create storage failed"
+	init_args+=(--storage "$VM_NAME-disk")
 fi
 
-# list all images in ubuntu: or ubuntu-daily:
-# lxc image list ubuntu:
-# lxc image list ubuntu-daily:
+if [ "$DAILY_BUILD" = "yes" ]; then IMAGE="ubuntu-daily:$SERIES"; else IMAGE="ubuntu:$SERIES"; fi
 
-if [ "$DAILY_BUILD" == "yes" ]; then
-        lxc init ubuntu-daily:"$SERIES" "$VM_NAME" --vm
-else
-        lxc init ubuntu:"$SERIES" "$VM_NAME" --vm
-fi
+log "initialising VM $VM_NAME from $IMAGE"
+lxc init "$IMAGE" "$VM_NAME" --vm "${init_args[@]}" || die "init $VM_NAME failed"
+
 lxc config set "$VM_NAME" limits.cpu "$CPUS"
-lxc config set "$VM_NAME" limits.memory "$MEM"GiB
+lxc config set "$VM_NAME" limits.memory "${MEM}GiB"
 lxc config set "$VM_NAME" security.secureboot false
-## old lxc uses "set" instead of "override"
-#lxc config device set "$VM_NAME" root size="$DISK"GiB
-lxc config device override "$VM_NAME" root size="$DISK"GiB
+# Old LXD spells this "lxc config device set"; "override" is needed once the
+# root device is inherited from the profile rather than defined on the instance.
+lxc config device override "$VM_NAME" root size="${DISK}GiB"
+
+log "starting VM $VM_NAME"
 lxc start "$VM_NAME"
 
-echo "waiting for user to be created"
-while true; do
-        lxc exec "$VM_NAME" -- /bin/bash -c "test -d /home/ubuntu/.ssh"
-        if [ "$?" = "0" ]; then
-                break
-        else
-                sleep 1
-        fi
-done
-echo "done"
+wait_for_path "$VM_NAME" "/home/$GUEST_USER/.ssh"
+push_ssh_key "$VM_NAME" "$GUEST_USER"
 
-echo "setup ssh auth key"
-IDPUB=$(cat ~/.ssh/id_rsa.pub)
-lxc exec "$VM_NAME" -- /bin/bash -c "echo $IDPUB > /home/ubuntu/.ssh/authorized_keys"
-echo "done"
-        
-echo "searching vm address"
-INSTANCE_ID=0
-for((i=0; i<100; i++)); do
-        NAME=$(lxc list --format=json | jq -r .[$i].name)
-        if [ "$NAME" = "$VM_NAME" ]; then
-                INSTANCE_ID="$i"
-                break
-        elif [ "$NAME" = "null" ]; then
-                echo "can not find $VM_NAME"
-                exit 1
-        fi
-done
-ADDR=$(lxc list --format=json | jq -r .["$INSTANCE_ID"].state.network.enp5s0.addresses[0].address)
-echo "address: $ADDR"
+ADDR=$(wait_for_addr "$VM_NAME")
+ssh_config_add "$VM_NAME" "$ADDR" "$GUEST_USER"
+check_ssh_agent
 
-echo "setup ssh agent"
-eval $(ssh-agent -s)
-agent_pid=$(ps aux | grep gerald | grep ssh-agent | grep -v grep | awk '{print $2}')
-ssh-add
-
-echo "" >> ~/.ssh/config
-echo "Host $2" >> ~/.ssh/config
-echo "  ForwardAgent yes" >> ~/.ssh/config
-echo "  HostName $ADDR" >> ~/.ssh/config
-echo "  User ubuntu" >> ~/.ssh/config
+log "VM $VM_NAME ready:  ssh $VM_NAME"

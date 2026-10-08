@@ -60,7 +60,8 @@ function launch_vm {
         if [ "$codename" = "focal" ]; then
                 virt-install -n "$1" --description "test vm" --os-type generic --vcpu "$3" --ram "$4" --disk "$1".img,device=disk,bus=virtio,cache=directsync --disk cloud-init-"$1".iso,device=cdrom --virt-type kvm --graphics none --network network=default,model=virtio --import --noautoconsole
         else
-                virt-install -n "$1" --description "test vm" --osinfo ubuntu"$2" --vcpu "$3" --ram "$4" --disk "$1".img,device=disk,bus=virtio,cache=directsync --disk cloud-init-"$1".iso,device=cdrom --virt-type kvm --graphics none --network network=default,model=virtio --import --noautoconsole
+                #virt-install -n "$1" --description "test vm" --osinfo ubuntu"$2" --vcpu "$3" --ram "$4" --disk "$1".img,device=disk,bus=virtio,cache=directsync --disk cloud-init-"$1".iso,device=cdrom --virt-type kvm --graphics none --network network=default,model=virtio --import --noautoconsole
+                virt-install -n "$1" --description "test vm" --osinfo ubuntu-stable-latest --vcpu "$3" --ram "$4" --disk "$1".img,device=disk,bus=virtio,cache=directsync --disk cloud-init-"$1".iso,device=cdrom --virt-type kvm --graphics none --network network=default,model=virtio --import --noautoconsole
         fi
         #virsh list
 }

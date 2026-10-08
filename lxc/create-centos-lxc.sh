@@ -1,131 +1,103 @@
 #!/bin/bash
+#
+# Create a CentOS LXD container with a build toolchain, install our ssh key and
+# add an ~/.ssh/config entry for it.
+set -euo pipefail
+
+. "$(dirname "$(readlink -f "$0")")/lib/common.sh"
+
+GUEST_USER=root
 
 usage() {
-	echo ""
-	echo "Usage:"
-	echo "create-centos-lxc.sh CENTOS_SERIES CONTAINER_NAME STORAGE_SIZE [NEED_CONFIG]"
-	echo "create-centos-lxc.sh -c CONTAINER_NAME"
-	echo ""
-	echo "NEED_CONFIG: yes or no(default)"
-	echo "             setup ssh/gpg key and copy/clone tools"
-	echo ""
+	cat <<-EOU
+	Usage:
+	  ${0##*/} <centos series> <name> <disk GB> [configure: yes|no]
+	  ${0##*/} -c <name> [centos series]   configure an existing container only
+	  ${0##*/} -h                          show this help
+
+	configure: set up the ssh/gpg keys and clone the tools (default: no)
+
+	Example:
+	  ${0##*/} images:centos/8-Stream centos-c 30 yes
+	EOU
 }
 
 config_container() {
-	echo "setup ssh auth"
-	IDPUB=$(cat ~/.ssh/id_rsa.pub)
-	lxc exec "$1" -- /bin/bash -c "mkdir -p /root/.ssh"
-	lxc exec "$1" -- /bin/bash -c "echo $IDPUB > /root/.ssh/authorized_keys"
-        while true; do
-	        lxc exec "$1" -- /bin/bash -c "dhclient eth0"
-                if [ "$?" = "0" ]; then
-                        break
-                else
-                        sleep 5
-                fi
-        done
-	lxc exec "$1" -- /bin/bash -c "yum update"
-	lxc exec "$1" -- /bin/bash -c "yum install wget git openssh-server bash-completion tar libffi-devel -y"
-        if [ "$CENTOS_SERIES" = "centos7" ]; then
-	        lxc exec "$1" -- /bin/bash -c "yum install epel-release dnf python-virtualenv centos-release-scl -y"
-	        lxc exec "$1" -- /bin/bash -c "yum-config-manager --enable rhel-server-rhscl-7-rpms"
-	        lxc exec "$1" -- /bin/bash -c "yum install devtoolset-8 -y"
-	        lxc exec "$1" -- /bin/bash -c "echo 'scl enable devtoolset-8 bash' > /root/enalbe-devtoolset-8"
-        else
-	        lxc exec "$1" -- /bin/bash -c "yum install python3-virtualenv -y"
-	        lxc exec "$1" -- /bin/bash -c 'yum groupinstall "Development Tools" -y'
-        fi
-	lxc exec "$1" -- /bin/bash -c "systemctl start sshd"
-	echo "done"
-	
-	echo "waiting for user to be created"
-	while true; do
-                running=$(lxc exec "$1" -- /bin/bash -c "systemctl status sshd | grep active | grep running")
-		if [ -z "$running" ]; then
-			sleep 1
-		else
-                        break
-		fi
-	done
-	echo "done"
+	local name="$1" series="$2" addr
 
-	echo "searching container address"
-	INSTANCE_ID=0
-	for((i=0; i<100; i++)); do
-		NAME=$(lxc list --format=json | jq -r .[$i].name)
-		if [ "$NAME" = "$1" ]; then
-			INSTANCE_ID="$i"
-			break
-		elif [ "$NAME" = "null" ]; then
-			echo "can not find $1"
-			exit 1
-		fi
-	done
-	ADDR=$(lxc list --format=json | jq -r .["$INSTANCE_ID"].state.network.eth0.addresses[0].address)
-	echo "address: $ADDR"
+	instance_exists "$name" || die "container $name does not exist"
 
-	echo "copy configs"
-	scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/.ssh/id_rsa root@"$ADDR":~/.ssh/
-	scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/.ssh/id_rsa.pub root@"$ADDR":~/.ssh/
-	scp -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/.gnupg root@"$ADDR":~/
-	scp -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ~/.gitconfig root@"$ADDR":~/
-	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@"$ADDR" git clone https://github.com/gerald-yang/debug-tools
+	# CentOS images ship without a DHCP lease; keep asking until the
+	# interface comes up, otherwise every yum call below fails.
+	wait_for 120 "network in $name" lxc exec "$name" -- dhclient eth0
+
+	log "installing packages"
+	lxc exec "$name" -- yum -y update
+	lxc exec "$name" -- yum -y install \
+		wget git openssh-server bash-completion tar libffi-devel
+
+	# centos7 predates python3-virtualenv and needs SCL for a modern gcc.
+	if [ "$series" = "centos7" ]; then
+		lxc exec "$name" -- yum -y install \
+			epel-release dnf python-virtualenv centos-release-scl
+		lxc exec "$name" -- yum-config-manager --enable rhel-server-rhscl-7-rpms
+		lxc exec "$name" -- yum -y install devtoolset-8
+		lxc exec "$name" -- /bin/bash -c \
+			"echo 'scl enable devtoolset-8 bash' > /root/enable-devtoolset-8"
+	else
+		lxc exec "$name" -- yum -y install python3-virtualenv
+		lxc exec "$name" -- yum -y groupinstall "Development Tools"
+	fi
+
+	log "starting sshd"
+	lxc exec "$name" -- systemctl enable --now sshd
+	wait_for 60 "sshd in $name" lxc exec "$name" -- systemctl is-active sshd
+
+	push_ssh_key "$name" "$GUEST_USER"
+
+	addr=$(wait_for_addr "$name")
+	ssh_config_add "$name" "$addr" "$GUEST_USER"
+	check_ssh_agent
+
+	copy_dev_config "$addr" "$GUEST_USER"
+	remote_ssh "$name" git clone https://github.com/gerald-yang/debug-tools || \
+		warn "git clone debug-tools failed"
+
+	log "container $name ready:  ssh $name"
 }
 
-if [ "$1" = "-c" ]; then
-        if [ -z "$2" ]; then
-                echo "enter container name to be configured"
-                exit -1
-        fi
-        config_container "$2"
-        exit 0
-fi
+need_cmd lxc jq
 
-if [ -z "$1" ]; then
-	echo "Wrong parameter 1"
-	usage
-	exit 1
-fi
+case "${1:-}" in
+	-h|--help|"") usage; exit 0 ;;
+	-c)
+		[ -n "${2:-}" ] || die "enter the container name to configure"
+		# The series decides which toolchain to install, so it has to be
+		# passed here too - the original script read an unset variable.
+		config_container "$2" "${3:-}"
+		exit 0
+		;;
+esac
 
-if [ -z "$2" ]; then
-	echo "Wrong parameter 2"
-	usage
-	exit 1
-fi
-
-if [ -z "$3" ]; then
-	echo "Wrong parameter 3"
-	usage
-	exit 1
-fi
-
-if [ -z "$3" ]; then
-	echo "Wrong parameter 3"
-	usage
-	exit 1
-fi
+[ "$#" -ge 3 ] || { echo "error: expected at least 3 arguments, got $#" >&2; usage; exit 1; }
 
 CENTOS_SERIES="$1"
 CONTAINER_NAME="$2"
 STORAGE_SIZE="$3"
-NEED_CONFIG="$4"
+NEED_CONFIG="${4:-no}"
 
-echo "creating storage $CONTAINER_NAME-disk"
-lxc storage create "$CONTAINER_NAME"-disk btrfs size="$STORAGE_SIZE"GB
-if [ "$?" != "0" ]; then
-	echo "create storage failed"
-	exit 1
-fi
-echo "done"
+[[ "$STORAGE_SIZE" =~ ^[0-9]+$ ]] || die "disk size must be a number of GB, got '$STORAGE_SIZE'"
+if instance_exists "$CONTAINER_NAME"; then die "instance $CONTAINER_NAME already exists"; fi
 
-echo "launching container $CONTAINER_NAME"
-lxc launch "$CENTOS_SERIES" "$CONTAINER_NAME" --storage="$CONTAINER_NAME"-disk
-if [ "$?" != "0" ]; then
-	echo "launch $CONTAINER_NAME failed"
-	exit 1
-fi
-echo "done"
+log "creating storage pool $CONTAINER_NAME-disk (${STORAGE_SIZE}GB, btrfs)"
+lxc storage create "$CONTAINER_NAME-disk" btrfs size="${STORAGE_SIZE}GB" || die "create storage failed"
+
+log "launching container $CONTAINER_NAME from $CENTOS_SERIES"
+lxc launch "$CENTOS_SERIES" "$CONTAINER_NAME" --storage "$CONTAINER_NAME-disk" || \
+	die "launch $CONTAINER_NAME failed"
 
 if [ "$NEED_CONFIG" = "yes" ]; then
-	config_container "$CONTAINER_NAME"
+	config_container "$CONTAINER_NAME" "$CENTOS_SERIES"
+else
+	log "container $CONTAINER_NAME launched; run '${0##*/} -c $CONTAINER_NAME $CENTOS_SERIES' to configure it"
 fi

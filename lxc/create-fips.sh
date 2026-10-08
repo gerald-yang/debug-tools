@@ -1,55 +1,54 @@
 #!/bin/bash
+#
+# Create an Ubuntu VM, attach it to an Ubuntu Pro subscription and enable the
+# FIPS-updates stream.
+set -euo pipefail
 
-if [ -z "$1" ]; then
-        echo "please enter your ubuntu pro token"
-        exit -1
-fi
+. "$(dirname "$(readlink -f "$0")")/lib/common.sh"
 
-lxc launch ubuntu:focal fips --vm -c security.secureboot=false -c limits.cpu=8 -c limits.memory=16GiB
+GUEST_USER=ubuntu
 
-echo "waiting for user to be created"
-while true; do
-        lxc exec fips -- /bin/bash -c "test -d /home/ubuntu/.ssh"
-        if [ "$?" = "0" ]; then
-                break
-        else
-                sleep 1
-        fi
-done
-echo "done"
+usage() {
+	cat <<-EOU
+	Usage:
+	  ${0##*/} <ubuntu pro token> [name] [series]
+	  ${0##*/} -h    show this help
 
-echo "setup ssh auth key"
-IDPUB=$(cat ~/.ssh/id_rsa.pub)
-lxc exec fips -- /bin/bash -c "echo $IDPUB > /home/ubuntu/.ssh/authorized_keys"
-echo "done"
-        
-echo "searching container address"
-INSTANCE_ID=0
-for((i=0; i<100; i++)); do
-        NAME=$(lxc list --format=json | jq -r .[$i].name)
-        if [ "$NAME" = fips ]; then
-                INSTANCE_ID="$i"
-                break
-        elif [ "$NAME" = "null" ]; then
-                echo "can not find fips"
-                exit 1
-        fi
-done
-ADDR=$(lxc list --format=json | jq -r .["$INSTANCE_ID"].state.network.enp5s0.addresses[0].address)
-echo "address: $ADDR"
+	Defaults: name=fips  series=focal
 
-echo "setup ssh agent"
-eval $(ssh-agent -s)
-agent_pid=$(ps aux | grep gerald | grep ssh-agent | grep -v grep | awk '{print $2}')
-ssh-add
+	Example:
+	  ${0##*/} C1xxxxxxxxxxxxxxxx
+	EOU
+}
 
-echo "" >> ~/.ssh/config
-echo "Host fips" >> ~/.ssh/config
-echo "  ForwardAgent yes" >> ~/.ssh/config
-echo "  HostName $ADDR" >> ~/.ssh/config
-echo "  User ubuntu" >> ~/.ssh/config
+case "${1:-}" in -h|--help|"") usage; exit 0 ;; esac
 
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fips sudo pro attach "$1"
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fips sudo pro enable fips-updates
+need_cmd lxc jq
 
-#ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null fips sudo apt purge -y linux-headers-5.4.0-1114-kvm linux-headers-kvm linux-image-5.4.0-1100-fips linux-image-5.4.0-1114-kvm linux-image-kvm linux-kvm linux-kvm-headers-5.4.0-1114 linux-modules-5.4.0-1114-kvm
+PRO_TOKEN="$1"
+VM_NAME="${2:-fips}"
+SERIES="${3:-focal}"
+
+if instance_exists "$VM_NAME"; then die "instance $VM_NAME already exists"; fi
+
+log "launching VM $VM_NAME (ubuntu:$SERIES)"
+lxc launch "ubuntu:$SERIES" "$VM_NAME" --vm \
+	-c security.secureboot=false -c limits.cpu=8 -c limits.memory=16GiB
+
+wait_for_path "$VM_NAME" "/home/$GUEST_USER/.ssh"
+push_ssh_key "$VM_NAME" "$GUEST_USER"
+
+ADDR=$(wait_for_addr "$VM_NAME")
+ssh_config_add "$VM_NAME" "$ADDR" "$GUEST_USER"
+check_ssh_agent
+
+# Wait for sshd rather than assuming it is up the moment an address appears.
+wait_for 120 "ssh on $VM_NAME" remote_ssh "$VM_NAME" true
+
+log "attaching Ubuntu Pro subscription"
+remote_ssh "$VM_NAME" sudo pro attach "$PRO_TOKEN"
+
+log "enabling fips-updates"
+remote_ssh "$VM_NAME" sudo pro enable fips-updates --assume-yes
+
+log "$VM_NAME ready; reboot it to run the FIPS kernel:  lxc restart $VM_NAME"
